@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import BlurCircle from "../components/BlurCircle";
 import { useAppContext } from "../context/AppContext";
 
- const currency = import.meta.env.VITE_CURENCY;
+const currency = import.meta.env.VITE_CURENCY || "ETB";
 const rowLetter = (index) => String.fromCharCode(65 + index);
 
 const generateSeats = (rows, cols, startCol = 1, customRows = {}, reverse = false) => {
@@ -68,14 +68,14 @@ const layouts = {
 
 const hallMap = { C1: "hall1", C2: "hall2", C3: "hall3" };
 const screenWidths = {
-  hall1: "w-[400px] sm:w-[450px] md:w-[500px]",
-  hall2: "w-[480px] sm:w-[520px] md:w-[580px]",
-  hall3: "w-[380px] sm:w-[430px] md:w-[470px]",
+  hall1: "w-[360px] sm:w-[420px] md:w-[480px]",
+  hall2: "w-[420px] sm:w-[500px] md:w-[580px]",
+  hall3: "w-[360px] sm:w-[420px] md:w-[480px]",
 };
 
 const MAX_SELECTION = 8;
 
-// ----------------- Normalization helpers -----------------
+// ----------------- Helpers -----------------
 const getFirst = (obj, keys) => {
   if (!obj || typeof obj !== "object") return undefined;
   for (const k of keys) {
@@ -86,32 +86,19 @@ const getFirst = (obj, keys) => {
 
 const normalizeTimeItem = (raw) => {
   if (!raw || typeof raw !== "object") return raw;
-
   const time = getFirst(raw, ["time", "startTime", "start_time", "datetime", "dateTime", "show_time", "t"]);
   const type = getFirst(raw, ["type", "showType", "format", "kind"]);
   const Hall = getFirst(raw, ["Hall", "hall", "hall_name", "hallName"]);
   const showId = getFirst(raw, ["showId", "show_id", "id", "_id"]);
   const regular = raw.showPrice?.regular ?? getFirst(raw, ["regular", "regular_price", "regularPrice", "price", "seatPrice"]);
   const Vip = raw.showPrice?.vip ?? getFirst(raw, ["Vip", "vip", "vip_price", "vipPrice"]);
-
-  return {
-    ...raw,
-    time,
-    type,
-    Hall,
-    showId,
-    regular,
-    Vip,
-  };
+  return { ...raw, time, type, Hall, showId, regular, Vip };
 };
 
 const normalizeShow = (rawShow) => {
   if (!rawShow || typeof rawShow !== "object") return rawShow;
   const show = { ...rawShow };
-
-  // normalize dateTime into a map: { dateString: [items] }
   let dt = show.dateTime ?? show.date_time ?? show.date_times ?? show.showTimes ?? null;
-
   if (Array.isArray(dt)) {
     const grouped = {};
     dt.forEach((it) => {
@@ -124,26 +111,56 @@ const normalizeShow = (rawShow) => {
   } else if (dt && typeof dt === "object") {
     const normalizedMap = {};
     Object.entries(dt).forEach(([dateKey, arr]) => {
-      if (Array.isArray(arr)) {
-        normalizedMap[dateKey] = arr.map((it) => normalizeTimeItem(it));
-      } else if (typeof arr === "object") {
-        normalizedMap[dateKey] = [normalizeTimeItem(arr)];
-      } else {
-        normalizedMap[dateKey] = [];
-      }
+      if (Array.isArray(arr)) normalizedMap[dateKey] = arr.map((it) => normalizeTimeItem(it));
+      else if (typeof arr === "object") normalizedMap[dateKey] = [normalizeTimeItem(arr)];
+      else normalizedMap[dateKey] = [];
     });
     show.dateTime = normalizedMap;
   } else {
     show.dateTime = show.dateTime ?? {};
   }
-
   show.Hall = show.Hall ?? show.hall ?? show.hallName;
   show.regular = show.regular ?? show.regular_price ?? show.price ?? show.regularPrice;
   show.Vip = show.Vip ?? show.vip ?? show.vip_price ?? show.vipPrice;
-
   return show;
 };
-// ---------------------------------------------------------
+
+const ItemCard = ({ item, activeCard, handleCardClick, quantities, updateQuantity, currency }) => {
+  const qty = quantities[item._id] || 0;
+  const showControls = activeCard === item._id || qty > 0;
+
+  return (
+    <div
+      onClick={() => handleCardClick(item._id)}
+      className={`rounded-2xl p-3 cursor-pointer transition duration-200 border ${
+        activeCard === item._id ? "border-primary scale-105" : "border-gray-700 hover:border-primary/50"
+      }`}
+    >
+      <img src={item.image?.url || item.image} alt={item.name} className="w-full h-28 object-contain mb-2 rounded-lg" />
+      <h3 className="font-semibold text-md">{item.name}</h3>
+      <p className="text-xs text-gray-400 line-clamp-2">{item.desc}</p>
+      <p className="mt-2 font-bold text-primary text-sm">
+        {currency} {item.price}
+      </p>
+
+      {showControls && (
+        <div className="flex items-center justify-center mt-2 gap-3" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => updateQuantity(item._id, -1)}
+            disabled={!qty}
+            className={`px-3 py-1 rounded-full font-bold ${qty ? "bg-primary text-white" : "bg-gray-600 text-gray-300 cursor-not-allowed"}`}
+          >
+            -
+          </button>
+          <span className="min-w-[24px] text-sm">{qty}</span>
+          <button onClick={() => updateQuantity(item._id, +1)} className="px-3 py-1 bg-primary text-white rounded-full font-bold">
+            +
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const SeatLayout = () => {
   const { id, date } = useParams();
@@ -151,36 +168,32 @@ const SeatLayout = () => {
   const [selectedTime, setSelectedTime] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedSeats, setSelectedSeats] = useState([]);
-  const [occupiedSeats, setOccupiedSeats] = useState([]);
+  const [occupiedSeats, setOccupiedSeats] = useState([]); // array of uppercased seat ids for the selected category
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastApiResponse, setLastApiResponse] = useState(null);
 
-  const navigate = useNavigate();
-  const { axios, getToken } = useAppContext();
+  const [wantSnacks, setWantSnacks] = useState(false);
+  const [snacksData, setSnacksData] = useState([]);
+  const [quantities, setQuantities] = useState({});
+  const [activeCard, setActiveCard] = useState(null);
 
-  // ref to the seats container so we can scroll it into view on small screens when a category is selected
+  const navigate = useNavigate();
+  const { axios, getToken, user } = useAppContext();
   const seatsContainerRef = useRef(null);
 
   const selectCategory = (cat) => {
     setSelectedCategory(cat);
     setSelectedSeats([]);
-    // scroll the seat layout into view so mobile users see the seats after choosing a category
-    try {
-      // small timeout lets the UI update before scrolling
-      setTimeout(() => {
-        if (seatsContainerRef?.current && typeof seatsContainerRef.current.scrollIntoView === 'function') {
-          seatsContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else {
-          // fallback: scroll the window to the seat area top
-          const el = document.querySelector('.seat-layout-anchor');
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 120);
-    } catch (e) {
-      console.warn('SeatLayout: scroll failed', e);
-    }
-  }; 
+    setTimeout(() => {
+      if (seatsContainerRef?.current && typeof seatsContainerRef.current.scrollIntoView === "function") {
+        seatsContainerRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        const el = document.querySelector(".seat-layout-anchor");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 120);
+  };
 
   const parsePrice = useCallback((p) => {
     if (typeof p === "number") return p;
@@ -243,8 +256,6 @@ const SeatLayout = () => {
       const res = await axios.get(`/api/show/${id}`, config);
       const raw = res?.data ?? res;
       setLastApiResponse(raw);
-
-      // quick common keys
       const possible = raw?.show || raw?.data || raw?.result || raw?.payload || raw;
       if (possible && (possible.dateTime || possible.movie || possible.title || possible._id)) {
         const normalized = normalizeShow(possible);
@@ -252,7 +263,6 @@ const SeatLayout = () => {
         setLoading(false);
         return;
       }
-
       const found = findShowInObject(raw);
       if (found) {
         const normalized = normalizeShow(found);
@@ -265,7 +275,6 @@ const SeatLayout = () => {
       setLastApiResponse({ error: String(err) });
     }
 
-    // fallback to dummy
     const fallback = dummyShowsData.find((s) => String(s._id) === String(id));
     if (fallback) {
       setShow(normalizeShow({ movie: fallback, dateTime: dummyDateTimeData }));
@@ -287,40 +296,122 @@ const SeatLayout = () => {
     getShow();
   }, [getShow, id]);
 
+  // helper: try to fetch the current user's bookings (several common endpoints, returns array of bookings)
+  const fetchMyBookings = useCallback(
+    async (config) => {
+      if (!axios || !user) return [];
+      const tries = ["/api/booking/my", "/api/booking/my-bookings", "/api/booking/user", "/api/booking/bookings/my", "/api/booking"]; // some servers use different routes
+      for (const ep of tries) {
+        try {
+          // for some endpoints we may want to pass showId as query — we filter client-side anyway
+          const resp = await axios.get(ep, config);
+          const data = resp?.data ?? resp;
+          // if response is an object with bookings array
+          if (Array.isArray(data?.bookings)) return data.bookings;
+          // if response is an array directly
+          if (Array.isArray(data)) return data;
+          // some endpoints return { result: [...] }
+          if (Array.isArray(data?.result)) return data.result;
+        } catch (e) {
+          // ignore and continue
+        }
+      }
+      return [];
+    },
+    [axios, user]
+  );
+
   const getOccupiedSeats = useCallback(async () => {
-    // derive showId from normalized selectedTime (support multiple possible keys)
     const showId = selectedTime ? getFirst(selectedTime, ["showId", "show_id", "id", "_id"]) : null;
     if (!showId) {
       setOccupiedSeats([]);
       return;
     }
 
+    if (!selectedCategory) {
+      setOccupiedSeats([]);
+      return;
+    }
+
+    const cat = selectedCategory.toLowerCase(); // "regular" or "vip"
+
     try {
       const config = await buildConfig();
-      const { data } = await axios.get(`/api/booking/seats/${showId}`, config);
-      const raw = data ?? {};
-      if (raw?.success && Array.isArray(raw.occupiedSeats)) {
-        setOccupiedSeats(raw.occupiedSeats.map((s) => String(s).trim().toUpperCase()));
-        return;
+
+      // 1) fetch global occupied seats (server endpoint you already have)
+      let mainOccupied = [];
+      try {
+        const { data } = await axios.get(`/api/booking/seats/${showId}`, config);
+        const raw = data ?? {};
+        // If server returns structured occupiedSeats object
+        if (raw?.success && raw.occupiedSeats && typeof raw.occupiedSeats === "object") {
+          mainOccupied = Array.isArray(raw.occupiedSeats[cat]) ? raw.occupiedSeats[cat] : [];
+        } else if (raw && typeof raw.occupiedSeats === "object") {
+          mainOccupied = Array.isArray(raw.occupiedSeats[cat]) ? raw.occupiedSeats[cat] : [];
+        } else if (Array.isArray(raw?.occupiedSeats)) {
+          // fallback: server returned flat array
+          mainOccupied = raw.occupiedSeats;
+        } else if (Array.isArray(data)) {
+          // sometimes the API returns array directly
+          mainOccupied = data;
+        }
+      } catch (err) {
+        // still continue — we'll try to merge user bookings
+        console.warn("SeatLayout: fetching global occupied seats failed", err);
       }
-      if (Array.isArray(raw?.occupiedSeats)) {
-        setOccupiedSeats(raw.occupiedSeats.map((s) => String(s).trim().toUpperCase()));
-        return;
+
+      // 2) fetch current user's bookings (so we also mark our own seats as occupied)
+      let myBookedSeats = [];
+      try {
+        const myBookings = await fetchMyBookings(config);
+        if (Array.isArray(myBookings) && myBookings.length > 0) {
+          // bookings shape may vary; try to extract seat lists
+          const seats = [];
+          myBookings.forEach((b) => {
+            // b.show or b.showId may hold the show id; sometimes it's nested object
+            const bShowId = getFirst(b, ["show", "showId", "show_id", "id", "_id"]);
+            // accept either plain id match or object match
+            if (String(bShowId) === String(showId) || String(b?.show) === String(showId) || String(b?.show?._id) === String(showId)) {
+              // some bookings store category, ensure we only include matching category
+              const bcat = (getFirst(b, ["category"]) || "").toLowerCase();
+              if (!bcat || bcat === cat) {
+                // extract bookedSeats or bookedSeats array
+                const bs = getFirst(b, ["bookedSeats", "selectedSeats", "seats", "booked_seats"]) || [];
+                if (Array.isArray(bs)) seats.push(...bs);
+                else if (typeof bs === "string") seats.push(bs);
+              }
+            }
+          });
+          myBookedSeats = seats;
+        }
+      } catch (err) {
+        console.warn("SeatLayout: fetching user bookings failed", err);
       }
-      setOccupiedSeats([]);
+
+      // combine both sources, uppercase & dedupe
+      const combined = Array.from(
+        new Set(
+          [...(mainOccupied || []), ...(myBookedSeats || [])]
+            .filter(Boolean)
+            .map((s) => String(s).trim().toUpperCase())
+        )
+      );
+
+      setOccupiedSeats(combined);
     } catch (err) {
       console.error("SeatLayout: error loading occupied seats:", err);
       toast.error("Error loading occupied seats");
       setOccupiedSeats([]);
     }
-  }, [axios, selectedTime, buildConfig]);
+  }, [axios, selectedTime, selectedCategory, buildConfig, fetchMyBookings]);
 
+  // re-fetch when time OR category changes
   useEffect(() => {
     if (selectedTime) getOccupiedSeats();
     else setOccupiedSeats([]);
-  }, [selectedTime, getOccupiedSeats]);
+  }, [selectedTime, selectedCategory, getOccupiedSeats]);
 
-  const hallKey = useMemo(() => hallMap[selectedTime?.Hall] || hallMap[getFirst(selectedTime, ["Hall", "hall"]) ] || "hall1", [selectedTime]);
+  const hallKey = useMemo(() => hallMap[selectedTime?.Hall] || hallMap[getFirst(selectedTime, ["Hall", "hall"])] || "hall1", [selectedTime]);
 
   const hallLayout = useMemo(() => {
     if (!selectedCategory) return null;
@@ -339,22 +430,31 @@ const SeatLayout = () => {
     );
   }, [hallLayout]);
 
+  // Set of disabled seats coming from layout.disabledSeats + occupied seats
+  const occupiedSet = useMemo(() => new Set((occupiedSeats || []).map((s) => String(s).trim().toUpperCase())), [occupiedSeats]);
+
   const disabledSeatSet = useMemo(() => {
     const set = new Set();
     if (!hallLayout) return set;
     Object.values(hallLayout).forEach((opts) => {
       (opts.disabledSeats || []).forEach((s) => set.add(String(s).trim().toUpperCase()));
     });
+    // Note: do not blindly mix layout disabled + occupied for click prevention in UI logic;
+    // we'll check isOccupied separately when toggling.
     (occupiedSeats || []).forEach((s) => set.add(String(s).trim().toUpperCase()));
     return set;
   }, [hallLayout, occupiedSeats]);
 
   const toggleSeat = (seatIdRaw) => {
+    if (!user) {
+      toast.error("Please login first to select seats.");
+      return;
+    }
     const seatId = String(seatIdRaw).trim().toUpperCase();
     if (!selectedTime) return toast.error("Please select a time first");
     if (!selectedCategory) return toast.error("Please choose Regular or VIP first");
-    if (disabledSeatSet.has(seatId)) return toast.error("Seat is not available");
-
+    if (occupiedSet.has(seatId)) return toast.error("Seat is already booked");
+    if (disabledSeatSet.has(seatId) && !occupiedSet.has(seatId)) return toast.error("Seat is not available");
     setSelectedSeats((prev) => {
       const present = prev.map((s) => s.toUpperCase()).includes(seatId);
       if (present) return prev.filter((s) => s.toUpperCase() !== seatId);
@@ -366,51 +466,105 @@ const SeatLayout = () => {
     });
   };
 
-  const handleProceed = () => {
-    if (!selectedTime) return toast.error("Please select a time first");
-    if (selectedSeats.length === 0) return toast.error("Please select at least one seat");
-    const pricePerSeat = parsePrice(
-      getFirst(
-        selectedTime,
-        selectedCategory === "vip"
-          ? ["Vip", "vip", "vip_price", "vipPrice"]
-          : ["regular", "price", "regular_price", "regularPrice", "seatPrice"]
-      )
-    );
-    navigate(`/Movies/${id}/${date}/Snacks`, {
-      state: {
-        selectedSeats,
-        category: selectedCategory,
-        hall: selectedTime.Hall,
-        pricePerSeat,
-      },
-    });
-
-    if(occupiedSeats.includes(seatId)){
-      return toast('this Seats is already booked')
-
-    }
-  };
-
-  const bookTickets = async () => {
-    try{
-      if(!user) return toast.error('Please first login Please')
-
-        if(!selectedTime || !selectedSeats.length) return toast.error('please select a time and seats')
-    
-            const {data} = await axios.post('/api/booking/create')
-        } catch (error) {
-      toast.error(error.message)
-    }
-  }
-
   useEffect(() => {
     setSelectedSeats([]);
   }, [selectedCategory]);
 
+  // --- Snacks handling (lazy fetch when dropdown opens) ---
   useEffect(() => {
-    if (selectedTime) console.log("Normalized selectedTime:", selectedTime);
-  }, [selectedTime]);
+    if (!wantSnacks) return;
+    let cancelled = false;
+    const fetchSnacks = async () => {
+      if (!axios) return;
+      try {
+        const { data } = await axios.get("/api/snacks/all");
+        if (!cancelled) setSnacksData(data.snacks || []);
+      } catch (err) {
+        console.error("Failed to load snacks", err);
+        toast.error("Failed to load snacks 😔");
+      }
+    };
+    fetchSnacks();
+    return () => {
+      cancelled = true;
+    };
+  }, [wantSnacks, axios]);
+
+  const updateQuantity = (id, delta) => {
+    if (!id) return;
+    setQuantities((prev) => {
+      const newQty = Math.max((prev[id] || 0) + delta, 0);
+      return { ...prev, [id]: newQty };
+    });
+  };
+
+  const handleSnackCardClick = (id) => {
+    setActiveCard((prev) => (prev === id ? null : id));
+  };
+
+  const totalSnacksPrice = snacksData.reduce((sum, item) => {
+    const qty = quantities[item._id] || 0;
+    return sum + qty * item.price;
+  }, 0);
+
+  const pricePerSeat = parsePrice(
+    getFirst(
+      selectedTime,
+      selectedCategory === "vip"
+        ? ["Vip", "vip", "vip_price", "vipPrice"]
+        : ["regular", "price", "regular_price", "regularPrice", "seatPrice"]
+    )
+  );
+
+  const handlePayNow = async () => {
+    if (!user) return toast.error("Please login first");
+    if (!selectedTime || selectedSeats.length === 0) return toast.error("Please select time and seats");
+    if (!selectedCategory) return toast.error("Please select a category");
+
+    try {
+      const token = await getToken();
+// Calculate payable totals
+const seatsTotal = pricePerSeat * selectedSeats.length;
+const totalAmount = seatsTotal + totalSnacksPrice;
+
+// Build properly structured snack data
+const formattedSnacks = wantSnacks
+  ? selectedSnackItems.map((snack) => ({
+      name: snack.name,
+      price: snack.price,
+      quantity: quantities[snack._id] || 0,
+    }))
+  : [];
+
+// Send full booking info to backend
+const { data } = await axios.post(
+  "/api/booking/create",
+  {
+    showId: selectedTime.showId,
+    selectedSeats,
+    category: selectedCategory,
+    wantSnacks,
+    snacks: formattedSnacks, // ✅ full snack info
+    totalAmount, // ✅ send full payable amount (seats + snacks)
+  },
+  { headers: { Authorization: `Bearer ${token}` } }
+);
+
+
+      if (data.success) {
+        toast.success(data.message);
+        navigate("/my-bookings");
+      } else {
+        toast.error(data.message || "Something went wrong. Please try again.");
+        // refresh occupied seats because server might have changed them
+        await getOccupiedSeats();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Something went wrong. Please try again.");
+      await getOccupiedSeats();
+    }
+  };
 
   if (loading) return <Loading />;
 
@@ -448,15 +602,22 @@ const SeatLayout = () => {
     );
   }
 
+  const snacks = snacksData.filter((item) => item.type === "Snack");
+  const drinks = snacksData.filter((item) => item.type === "Drink");
+  const waterItems = snacksData.filter((item) => item.type === "Water");
+  const selectedSnackItems = snacksData.filter((s) => (quantities[s._id] || 0) > 0);
+
   return (
-    <div className="min-h-screen w-full mt-15 overflow-y-hidden overflow-x-hidden">
-      <div className="flex flex-col lg:flex-row px-4 xs:px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24 py-16 md:py-20 lg:pt-28 text-white relative">
+    <div className="min-h-screen w-full mt-10 overflow-x-hidden">
+      <div className="flex flex-col lg:flex-row px-4 xs:px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24 py-12 md:py-16 lg:pt-20 text-white relative">
         <BlurCircle bottom="-20px" right="-20px" />
 
-        {/* Timings Panel */}
-        <div className="w-full lg:w-80 xl:w-96 mt-4 lg:mt-20 bg-primary/10 border border-primary/20 rounded-lg py-6 lg:py-8 h-max lg:sticky lg:top-28 mb-6 lg:mb-0 lg:mr-8">
-          <p className="text-lg font-semibold px-6 text-amber-400">Available Timings</p>
-          <div className="mt-4 flex flex-col gap-3">
+        <div className="w-full lg:w-80 xl:w-96 mt-4 lg:mt-6 bg-primary/8 border border-primary/20 rounded-lg py-6 lg:py-8 h-max lg:sticky lg:top-28 mb-6 lg:mb-0 lg:mr-8">
+          <div className="px-6">
+            <p className="text-lg font-semibold text-amber-400">Available Timings</p>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 px-3">
             {show?.dateTime?.[date] ? (
               show.dateTime[date].map((item, idx) => {
                 const normalizedItem = normalizeTimeItem(item);
@@ -468,8 +629,8 @@ const SeatLayout = () => {
                       setSelectedCategory(null);
                       setSelectedSeats([]);
                     }}
-                    className={`border rounded-lg mx-3 px-4 py-3 cursor-pointer transition-all duration-200 ${
-                      selectedTime?.time === normalizedItem.time ? "bg-primary text-amber-300 border-amber-400" : "hover:bg-primary/20 border-transparent"
+                    className={`border rounded-lg mx-1 px-3 py-2 cursor-pointer transition-all duration-200 ${
+                      selectedTime?.time === normalizedItem.time ? "bg-primary text-amber-300 border-amber-400" : "hover:bg-primary/12 border-transparent"
                     }`}
                   >
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
@@ -489,50 +650,50 @@ const SeatLayout = () => {
                             selectCategory("regular");
                           }}
                           className={`px-3 py-1 text-sm rounded-md border transition ${
-                            selectedCategory === "regular"
-                              ? "bg-amber-400/20 border-amber-400 text-amber-300"
-                              : "border-amber-400 hover:bg-amber-400/10"
+                            selectedCategory === "regular" ? "bg-amber-400/20 border-amber-400 text-amber-300" : "border-amber-400 hover:bg-amber-400/10"
                           }`}
                         >
                           Regular –{" "}
                           <span className="text-amber-300">
-                            {currency} {parsePrice(getFirst(normalizedItem, ["regular", "price", "regular_price", "regularPrice", "seatPrice"])).toLocaleString()}
+                            {currency} {parsePrice(getFirst(normalizedItem, ["regular", "price", "regular_price", "regularPrice", "seatPrice"]))?.toLocaleString()}
                           </span>
                         </button>
-                        
+
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             selectCategory("vip");
                           }}
                           className={`px-3 py-1 text-sm rounded-md border transition ${
-                            selectedCategory === "vip"
-                              ? "bg-amber-400/20 border-amber-400 text-amber-300"
-                              : "border-amber-400 hover:bg-amber-400/10"
+                            selectedCategory === "vip" ? "bg-amber-400/20 border-amber-400 text-amber-300" : "border-amber-400 hover:bg-amber-400/10"
                           }`}
                         >
                           VIP –{" "}
                           <span className="text-amber-300">
-                            {currency} {parsePrice(getFirst(normalizedItem, ["Vip", "vip", "vip_price", "vipPrice"])).toLocaleString()}
+                            {currency} {parsePrice(getFirst(normalizedItem, ["Vip", "vip", "vip_price", "vipPrice"]))?.toLocaleString()}
                           </span>
                         </button>
-                    </div>
+                      </div>
                     )}
                   </div>
+                  
                 );
               })
             ) : (
               <p className="text-gray-400 text-center italic">No timings available for this date.</p>
             )}
           </div>
+          <div className="flex items-center justify-center gap-2 mt-20">
+               <div className="w-4 h-4 bg-blue-500 rounded-sm"></div>
+              <span className="text-xs text-gray-300">Reserved, already booked so choose other seat </span>
+            </div>
         </div>
 
-        {/* Seat Layout Section */}
         <div className="flex-1 flex flex-col mt-4 items-center w-full">
           <h1 className="text-xl xs:text-2xl font-semibold mb-4 text-amber-400 text-center">Select Your Seats</h1>
           {selectedTime && (
             <h2 className="text-sm text-gray-400 mb-6 text-center">
-              Hall: <span className="text-amber-300">{selectedTime.Hall}</span> • {selectedTime.type} • {" "}
+              Hall: <span className="text-amber-300">{selectedTime.Hall}</span> • {selectedTime.type} •{" "}
               <span>{selectedCategory ? selectedCategory.toUpperCase() : "No category chosen"}</span>
             </h2>
           )}
@@ -546,28 +707,27 @@ const SeatLayout = () => {
                 {Object.entries(hallLayout).map(([section, opts]) => {
                   const seats = seatsBySection[section] || [];
                   return (
-                    <div
-                      key={section}
-                      className="flex flex-col items-center gap-3 flex-shrink-0 bg-gray-800/20 rounded-lg p-3"
-                      style={{ minWidth: `${Math.max((opts.cols || 6) * 36, 280)}px` }}
-                    >
+                    <div key={section} className="flex flex-col items-center gap-3 flex-shrink-0 bg-gray-800/20 rounded-lg p-3" style={{ minWidth: `${Math.max((opts.cols || 6) * 36, 280)}px` }}>
                       <h3 className="text-lg font-medium text-amber-400 capitalize">{section} Side</h3>
                       <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${opts.cols}, minmax(28px, 1fr))` }}>
                         {seats.map((seat) => {
                           const seatNorm = String(seat).toUpperCase();
                           const isSelected = selectedSeats.map((s) => s.toUpperCase()).includes(seatNorm);
+                          const isOccupied = occupiedSet.has(seatNorm);
                           const disabled = disabledSeatSet.has(seatNorm);
                           return (
                             <button
                               key={seat}
-                              onClick={() => !disabled && toggleSeat(seat)}
-                              disabled={disabled}
+                              onClick={() => !isOccupied && toggleSeat(seat)}
+                              disabled={isOccupied || (disabled && !isSelected)}
                               aria-label={`Seat ${seat}`}
                               className={`w-7 h-7 rounded-md border text-[10px] font-medium transition-all duration-200 ${
-                                isSelected ? "bg-amber-400 text-black border-amber-400 scale-105" : disabled ? "bg-gray-700/50 text-gray-400 border-gray-600 cursor-not-allowed" : "bg-gray-700 border-gray-600 hover:bg-amber-500/80 hover:scale-105 text-white"
+                                isSelected ? "bg-amber-400 text-black border-amber-400 scale-105"
+                                  : isOccupied ? "bg-blue-500 text-white border-blue-600 cursor-not-allowed"
+                                  : disabled ? "bg-gray-700/50 text-gray-400 border-gray-600 cursor-not-allowed" : "bg-gray-700 border-gray-600 hover:bg-amber-500/80 hover:scale-105 text-white"
                               }`}
                             >
-                              {!disabled ? seat : ""}
+                              {!isOccupied ? seat : ""}
                             </button>
                           );
                         })}
@@ -587,18 +747,21 @@ const SeatLayout = () => {
                         {seats.map((seat) => {
                           const seatNorm = String(seat).toUpperCase();
                           const isSelected = selectedSeats.map((s) => s.toUpperCase()).includes(seatNorm);
+                          const isOccupied = occupiedSet.has(seatNorm);
                           const disabled = disabledSeatSet.has(seatNorm);
+
                           return (
                             <button
                               key={seat}
-                              onClick={() => !disabled && toggleSeat(seat)}
-                              disabled={disabled}
+                              onClick={() => !isOccupied && toggleSeat(seat)}
+                              disabled={isOccupied || (disabled && !isSelected)}
                               aria-label={`Seat ${seat}`}
-                              className={`w-8 h-8 md:w-9 md:h-9 rounded-md border text-xs md:text-sm font-medium transition-all duration-200 ${
-                                isSelected ? "bg-amber-400 text-black border-amber-400 scale-105" : disabled ? "bg-gray-700/50 text-gray-400 border-gray-600 cursor-not-allowed" : "bg-gray-700 border-gray-600 hover:bg-amber-500/80 hover:scale-105 text-white"
-                              }`}
+                              className={`w-8 h-8 md:w-9 md:h-9 rounded-md border text-xs md:text-sm font-medium transition-all duration-200
+                                ${isSelected ? "bg-amber-400 text-black border-amber-400 scale-105"
+                                  : isOccupied ? "bg-blue-500 text-white border-blue-600 cursor-not-allowed"
+                                  : disabled ? "bg-gray-700/50 text-gray-400 border-gray-600 cursor-not-allowed" : "bg-gray-700 border-gray-600 hover:bg-amber-500/80 hover:scale-105 text-white"}`}
                             >
-                              {!disabled ? seat : ""}
+                              {!isOccupied ? seat : ""}
                             </button>
                           );
                         })}
@@ -609,43 +772,163 @@ const SeatLayout = () => {
               </div>
 
               {selectedSeats.length > 0 && (
-                <div className="mt-4 xs:mt-6 flex flex-col sm:flex-row justify-between items-center w-full gap-3 xs:gap-4 bg-gray-800/30 rounded-lg p-4 xs:p-6">
-                  <div className="flex flex-col xs:flex-row items-start xs:items-center gap-2 xs:gap-3 w-full sm:w-auto">
-                    <p className="text-gray-300 text-sm font-medium whitespace-nowrap">Selected Seats:</p>
-                    <div className="flex flex-wrap gap-2 justify-center xs:justify-start">
-                      {selectedSeats.map((seat) => (
-                        <span key={seat} className="px-2 xs:px-3 py-1 text-xs xs:text-sm bg-amber-500/30 border border-amber-400 rounded">
-                          {seat}
-                        </span>
-                      ))}
+  <div className="mt-4 xs:mt-6 w-full">
+    <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-gray-800/30 rounded-lg p-4 xs:p-6">
+      {/* LEFT: totals & seat info */}
+      <div className="flex-1 min-w-0">
+        <p className="text-base sm:text-lg font-semibold text-amber-400 whitespace-nowrap">
+          Total:
+        </p>
+
+        <div className="mt-2">
+          <p className="text-white font-semibold text-lg sm:text-xl md:text-2xl">
+            {currency} {(pricePerSeat * selectedSeats.length).toLocaleString()}
+          </p>
+
+          <p className="text-xs sm:text-sm text-gray-400 mt-1 truncate">
+            {selectedSeats.length} seat{selectedSeats.length !== 1 ? "s" : ""}:
+            <span className="ml-2 inline-block max-w-full">
+              {/* allow horizontal scroll on very small devices */}
+              <span className="inline-block whitespace-nowrap overflow-x-auto scrollbar-hide">
+                {selectedSeats.join(", ") || "—"}
+              </span>
+            </span>
+          </p>
+
+          {/* Snacks summary */}
+          {selectedSnackItems.length > 0 && (
+            <div className="mt-3 text-sm text-gray-200">
+              <p className="text-xs text-amber-300 mb-1">Snacks / Water</p>
+
+              <ul className="list-none space-y-1 max-w-full">
+                {selectedSnackItems.map((it) => (
+                  <li key={it._id} className="text-sm flex justify-between items-center">
+                    <span className="truncate mr-3">{it.name} × {quantities[it._id]}</span>
+                    <span className="text-gray-300 whitespace-nowrap">
+                      {currency} {(it.price * (quantities[it._id] || 0)).toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="mt-2 text-sm text-gray-300">
+                Snacks total:
+                <span className="text-white font-semibold ml-2">{currency} {totalSnacksPrice.toLocaleString()}</span>
+              </p>
+
+              <p className="mt-2 text-sm text-amber-300">
+                Payable:
+                <span className="text-white font-semibold ml-2">
+                  {currency} {(pricePerSeat * selectedSeats.length + totalSnacksPrice).toLocaleString()}
+                </span>
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* RIGHT: snack toggle + pay */}
+      <div className="flex flex-col sm:flex-row items-center gap-3 relative w-full md:w-auto">
+        <div className="relative w-full md:w-auto">
+          <button
+            onClick={() => setWantSnacks((v) => !v)}
+            aria-expanded={wantSnacks}
+            aria-controls="snack-panel"
+            className="w-full md:w-auto bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-full text-sm flex items-center gap-2 justify-center"
+          >
+            {wantSnacks ? "Hide snacks" : "Do you want snacks?"}
+          </button>
+
+          {wantSnacks && (
+            <div
+              id="snack-panel"
+              className={`
+                /* full-width, stacked panel on small screens; absolute dropdown on md+ */
+                mt-2 w-full md:w-[420px] 
+                ${/* absolute for md+ */ ""} 
+                md:absolute left-0 md:top-full md:right-0
+                max-h-[60vh] md:max-h-[360px] overflow-auto
+                bg-gray-900/95 border border-primary/30 p-3 rounded-lg shadow-xl z-50
+              `}
+              role="dialog"
+              aria-modal="false"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold text-white">Choose snacks</h4>
+                <button
+                  onClick={() => setWantSnacks(false)}
+                  className="text-xs text-gray-400 hover:text-white"
+                  aria-label="Close snacks panel"
+                >
+                  Close
+                </button>
+              </div>
+
+              {/* no-snacks state */}
+              {(!snacksData || snacksData.length === 0) ? (
+                <p className="text-sm text-gray-400">No snacks available right now.</p>
+              ) : (
+                <div className="space-y-2">
+                  {snacksData.map((item) => (
+                    <div key={item._id} className="flex items-center justify-between gap-3 p-2 bg-gray-800/30 rounded">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={item.image?.url || item.image}
+                          alt={item.name}
+                          className="w-10 h-10 sm:w-12 sm:h-12 object-contain rounded"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          <p className="text-xs text-gray-400 truncate">{item.desc}</p>
+                          <p className="text-xs text-amber-300">{currency} {item.price}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => updateQuantity(item._id, -1)}
+                          disabled={!(quantities[item._id] > 0)}
+                          className={`px-2 py-1 rounded-full font-bold ${quantities[item._id] > 0 ? "bg-primary text-white" : "bg-gray-600 text-gray-300 cursor-not-allowed"}`}
+                        >
+                          -
+                        </button>
+
+                        <span className="w-6 text-center text-sm">{quantities[item._id] || 0}</span>
+
+                        <button
+                          onClick={() => updateQuantity(item._id, +1)}
+                          className="px-2 py-1 bg-primary text-white rounded-full font-bold"
+                        >
+                          +
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex flex-col xs:flex-row items-center gap-3 xs:gap-4 w-full sm:w-auto mt-3 xs:mt-0">
-                    <p className="text-base xs:text-lg font-semibold text-amber-400 whitespace-nowrap">
-                      Total: {" "}
-                      <span className="text-white">
-                        {(() => {
-                          const price = parsePrice(
-                            getFirst(
-                              selectedTime,
-                              selectedCategory === "vip"
-                                ? ["Vip", "vip", "vip_price", "vipPrice"]
-                                : ["regular", "price", "regular_price", "regularPrice", "seatPrice"]
-                            )
-                          );
-                          return `${currency} ${(price * selectedSeats.length).toLocaleString()}`;
-                        })()}
-                      </span>
-                    </p>
-                    <button
-                      onClick={handleProceed}
-                      className="bg-primary hover:bg-primary-dull text-black font-semibold px-4 xs:px-6 py-2 xs:py-3 rounded-full transition-all active:scale-95 w-full sm:w-auto text-sm xs:text-base"
-                    >
-                      Proceed to Snacks
-                    </button>
+                  ))}
+
+                  <div className="mt-2 flex items-center justify-between">
+                    <p className="text-sm text-gray-300">Snacks total:</p>
+                    <p className="text-sm font-semibold text-white">{currency} {totalSnacksPrice.toLocaleString()}</p>
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Pay button: full width on small screens, auto on md+ */}
+        <div className="w-full md:w-auto">
+          <button
+            onClick={handlePayNow}
+            className="w-full md:w-auto bg-primary hover:bg-primary-dull text-black font-semibold px-4 xs:px-6 py-2 xs:py-3 rounded-full transition-all active:scale-95 text-sm xs:text-base"
+          >
+            Pay Now
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
             </div>
           ) : (
             <div className="w-full flex justify-center py-8">

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { dummyBookingData } from "../assets/assets";
 import Loading from "../components/Loading";
 import BlurCircle from "../components/BlurCircle";
 import TimeForamt from "../lib/TimeForamt";
 import { dateFormat } from "../lib/dateFormat";
 import { useAppContext } from "../context/AppContext";
+import { useUser } from "@clerk/clerk-react";
 
 const MyBookings = () => {
   const currency = import.meta.env.VITE_CURENCY;
@@ -23,9 +23,12 @@ const MyBookings = () => {
       }
     } catch (error) {
       console.log(error);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
+   
+  const email = user?.primaryEmailAddress?.emailAddress; 
 
   useEffect(() => {
     if (user) {
@@ -33,7 +36,9 @@ const MyBookings = () => {
     }
   }, [user]);
 
-  return !isLoading ? (
+  if (isLoading) return <Loading />;
+
+  return (
     <div
       className="
         relative 
@@ -92,12 +97,17 @@ const MyBookings = () => {
                   <p className="text-gray-400 text-sm md:text-base mt-2">
                     {dateFormat(item.show.showDateTime)}
                   </p>
+                  <p className="text-gray-400 text-sm md:text-base mt-2">
+                  <span className="text-gray-400">Type: </span>
+                  {item.category }
+                </p>
                 </div>
               </div>
             </div>
 
             {/* Right Section */}
             <div className="flex flex-col justify-between mt-4 md:mt-0 md:items-end md:text-right">
+              {/* Amount & Pay Button */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4">
                 <p className="text-xl md:text-2xl font-semibold mb-2 sm:mb-0">
                   {currency}
@@ -110,8 +120,26 @@ const MyBookings = () => {
                 )}
               </div>
 
-              {/* Seat & Snack Details */}
-              <div className="text-sm md:text-base text-gray-300 mt-3">
+              {/* Booking Details */}
+              <div className="text-sm md:text-base text-gray-300 mt-3 text-left sm:text-right">
+                <p>
+                  <span className="text-gray-400">Email: </span>
+                  {email || "N/A"}
+                </p>
+
+                <p>
+                  <span className="text-gray-400">Hall: </span>
+                  {item.show?.hall || "N/A"}
+                </p>
+
+                <p>
+                  <span className="text-gray-400">Type: </span>
+                  {item.show?.type || "N/A"}
+                </p>
+
+               
+
+
                 <p>
                   <span className="text-gray-400">Total Seats: </span>
                   {item.bookedSeats.length}
@@ -119,31 +147,39 @@ const MyBookings = () => {
 
                 <p>
                   <span className="text-gray-400">Seat Numbers: </span>
-                  {item.bookedSeats.join(", ")}
+                  {item.bookedSeats.map((s) => String(s).trim().toUpperCase()).join(", ")}
                 </p>
 
-                <p className="mt-2">
-                  <span className="text-gray-400">Snacks: </span>
-                  {item.Snacks && item.Snacks.length > 0 ? (
-                    <ul className="list-none ml-0 mt-1 space-y-1">
-                      {item.Snacks.map((snack, i) => (
-                        <li key={i}>
-                          {snack.quantity} {snack.name}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    "No snacks"
-                  )}
-                </p>
+            
+<p className="mt-2">
+  <span className="text-gray-400">Snacks: </span>
+  {item.snacks && item.snacks.length > 0 ? (
+    <ul className="list-none ml-0 mt-1 space-y-1">
+      {item.snacks.map((snack, i) => (
+        <li 
+          key={i} 
+          className="flex justify-between text-sm text-gray-200"
+        >
+          {/* Snack name and quantity */}
+          <span>{snack.name} × {snack.quantity}</span>
+          
+          {/* Snack price */}
+          <span>{snack.price * snack.quantity} {currency}</span>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    "No snacks"
+  )}
+</p>
+
+
               </div>
             </div>
           </div>
         ))}
       </div>
     </div>
-  ) : (
-    <Loading />
   );
 };
 

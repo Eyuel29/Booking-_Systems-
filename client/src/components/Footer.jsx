@@ -40,8 +40,8 @@ const Footer = () => {
 </h2>
 
           <ul className="text-sm space-y-2">
-            <li><a href="#">Home</a></li>
-            <li><a href="#">About us</a></li>
+            <li><a href="/">Home</a></li>
+            <li><a href="/movies">Movies</a></li>
             <li><a href="#">Contact us</a></li>
             <li><a href="#">Privacy policy</a></li>
           </ul>
@@ -97,8 +97,16 @@ const Footer = () => {
         </a>
       </div>
 
+      <div className="flex justify-center gap-4 mt-5">
+        <span> Developed by:</span>
+        
+        <a href="https://ezana-portfolio.netlify.app/" className='underline hover:text-blue-400 '><span>Ez Tech</span></a>
+        
+
+      </div>
+
       <p className="pt-4 text-center text-xs md:text-sm pb-5">
-        Copyright 2025 © <a href="/">Century Cinema</a>. All Right Reserved.
+        ©2025-{new Date().getFullYear()} <a href="/">Century Cinema</a>. All Right Reserved.
       </p>
     </footer>
   )
