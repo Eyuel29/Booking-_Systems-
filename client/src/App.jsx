@@ -19,6 +19,10 @@ import ListBooking from './pages/admin/ListBooking.jsx'
 import ManageSnacks from './pages/admin/ManagSnacks.jsx'
 import { useAppContext } from './context/AppContext.jsx'
 import { SignIn } from '@clerk/clerk-react'
+import AddUpcoming from './pages/admin/AddUpcoming.jsx'
+import ListUpcoming from './pages/admin/ListUpcoming.jsx'
+import UpcomingDetail from './pages/UpcomingDetail.jsx'
+
 
 
 const App = () => {
@@ -39,10 +43,13 @@ const App = () => {
        <Route path='/movie/:id' element={<MovieDetails />} />
 
        <Route path='/Movies/:id/:date' element={<SeatLayout />}/>
+
         <Route path='/Movies/:id/:date/:Snacks' element={<OrderSnacks />}/>
         <Route path='/my-bookings' element={<MyBookings />}/>
+       <Route path='/upcoming/:id' element={<UpcomingDetail/>}/>
         <Route path='/favorite' element={<Favorite/>}/>
         <Route path='/packages' element={<Packages />}/>
+       
 
       <Route path='/admin/*' element={ user ? <Layout/> : (
         <div className='min-h-screen flex justify-center items-center'>
@@ -55,6 +62,8 @@ const App = () => {
       <Route path='list-shows' element={<ListShows/>}/>
       <Route path='list-booking' element={<ListBooking/>}/>
        <Route path="ManageSnacks" element={<ManageSnacks />} />
+       <Route path="AddUpcoming" element={<AddUpcoming />} />
+       <Route path='List-Upcoming'element={<ListUpcoming/>} />
 
 
       </Route>
