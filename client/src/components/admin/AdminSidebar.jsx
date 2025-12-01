@@ -1,6 +1,6 @@
 import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboardIcon, ListCollapseIcon, ListIcon, PlusSquareIcon, LogOutIcon, PlusCircleIcon, ListChevronsUpDownIcon } from 'lucide-react'
+import { LayoutDashboardIcon, ListCollapseIcon, ListIcon, PlusSquareIcon, LogOutIcon, PlusCircleIcon, ListChevronsUpDownIcon, ListChecksIcon } from 'lucide-react'
 import { assets } from '../../assets/assets'
 import { CubeIcon } from '@heroicons/react/16/solid'
 import path from 'path'
@@ -21,7 +21,12 @@ const AdminSidebar = () => {
     { name: 'List Bookings', path: '/admin/list-booking', icon: ListCollapseIcon },
     { name: 'ManageSnacks', path: '/admin/ManageSnacks', icon: CubeIcon },
     { name: 'Add Coming Soon', path: '/admin/AddUpcoming', icon: PlusCircleIcon},
-    { name: 'Coming Soon', path: '/admin/List-Upcoming', icon: ListChevronsUpDownIcon}
+    { name: 'Coming Soon', path: '/admin/List-Upcoming', icon: ListChevronsUpDownIcon},
+    { name: 'List Resrvation', path: '/admin/List-Reservation', icon: ListChecksIcon},
+    { name: 'Add Movie', path: '/admin/Add-Movie', icon: ListChecksIcon},
+
+    
+  
   ] 
 
   const handleLogout = () => {
