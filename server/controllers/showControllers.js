@@ -1,6 +1,9 @@
+import mongoose from "mongoose";
 import axios from "axios"
 import Movie from "../models/Movie.js";
 import Show from "../models/Show.js";
+import ManualMovie from "../models/ManualMovie.js";
+
 
 export const getNowPlayingMovies = async (req, res)=>{
     try{
@@ -22,81 +25,134 @@ export const getNowPlayingMovies = async (req, res)=>{
 }
 
 
-//api to add a new show
 
 export const addShow = async (req, res) => {
   try {
-    const { movieId, showsInput, price, type } = req.body; // <-- use showsInput & price
+    const { movieId, showsInput, price, type } = req.body;
 
     if (!movieId || !showsInput || !price) {
       return res.status(400).json({ success: false, message: "Missing required fields" });
     }
 
-    let movie = await Movie.findById(movieId);
+    // Always treat movieId as a string internally
+    const movieIdStr = String(movieId).trim();
 
-    // If movie not found, fetch from TMDB including credits
+    // Try to find in Movies collection first (Movies._id may be string for TMDB ids)
+    let movie = await Movie.findById(movieIdStr);
+
+    // Only attempt ManualMovie lookup if movieId is a valid MongoDB ObjectId
+    const isObjectId = mongoose.Types.ObjectId.isValid(movieIdStr);
+    if (!movie && isObjectId) {
+      const manual = await ManualMovie.findById(movieIdStr);
+      if (manual) {
+        // Map manual movie structure into the Movie schema shape
+        const movieFromManual = {
+          _id: manual._id.toString(), // store as string to stay consistent with Movies._id type
+          title: manual.title || "",
+          overview: manual.overview || "",
+          poster_path: manual.backdrop_path?.url || "",
+          backdrop_path: manual.backdrop_path?.url || "",
+          genres: (manual.genres || []).map(g => (typeof g === "string" ? { name: g } : g)),
+          casts: (manual.casts || []).map(c => ({
+            name: c.name || "",
+            profile_path: c.castsImage?.url || c.profile_path || "",
+            character: c.character || "",
+          })),
+          runtime: manual.runtime || 0,
+          release_date: manual.release_date || "",
+          language: manual.original_language || manual.language || "en",
+          tagline: manual.tagline || "",
+          vote_average: manual.vote_average || 0,
+        };
+
+        movie = await Movie.create(movieFromManual);
+      }
+    }
+
+    // If still not found, fallback to TMDB fetch (handles numeric TMDB ids)
     if (!movie) {
-      const [movieDetailsResponse, movieCreditsResponse] = await Promise.all([
-        axios.get(`https://api.themoviedb.org/3/movie/${movieId}`, {
-          headers: { Authorization: `Bearer ${process.env.TMDB_API_KEY}` },
-        }),
-        axios.get(`https://api.themoviedb.org/3/movie/${movieId}/credits`, {
-          headers: { Authorization: `Bearer ${process.env.TMDB_API_KEY}` },
-        }),
-      ]);
-
-      const movieApiData = movieDetailsResponse.data;
-      const movieCreditsData = movieCreditsResponse.data;
+      // TMDB fetch - wrap in try to provide clearer errors
+      let movieApiData;
+      let movieCreditsData;
+      try {
+        const [detailsRes, creditsRes] = await Promise.all([
+          axios.get(`https://api.themoviedb.org/3/movie/${movieIdStr}`, {
+            headers: { Authorization: `Bearer ${process.env.TMDB_API_KEY}` },
+          }),
+          axios.get(`https://api.themoviedb.org/3/movie/${movieIdStr}/credits`, {
+            headers: { Authorization: `Bearer ${process.env.TMDB_API_KEY}` },
+          }),
+        ]);
+        movieApiData = detailsRes.data;
+        movieCreditsData = creditsRes.data;
+      } catch (tmdbErr) {
+        console.error("TMDB fetch error:", tmdbErr.response?.data || tmdbErr.message);
+        return res.status(502).json({
+          success: false,
+          message: "Failed to fetch movie from TMDB",
+          error: tmdbErr.response?.data || tmdbErr.message,
+        });
+      }
 
       const movieDetails = {
-        _id: movieId,
-        title: movieApiData.title,
-        overview: movieApiData.overview,
-        poster_path: movieApiData.poster_path,
-        backdrop_path: movieApiData.backdrop_path,
-        genres: movieApiData.genres,
-        casts: movieCreditsData.cast, // <-- include actual credits
-        runtime: movieApiData.runtime,
-        release_date: movieApiData.release_date,
-        original_language: movieApiData.original_language,
+        _id: movieIdStr, // store TMDB id as string
+        title: movieApiData.title || "",
+        overview: movieApiData.overview || "",
+        poster_path: movieApiData.poster_path || "",
+        backdrop_path: movieApiData.backdrop_path || "",
+        genres: movieApiData.genres || [],
+        casts: movieCreditsData?.cast || [],
+        runtime: movieApiData.runtime || 0,
+        release_date: movieApiData.release_date || "",
+        language: movieApiData.original_language || "en",
         tagline: movieApiData.tagline || "",
-        vote_average: movieApiData.vote_average,
+        vote_average: movieApiData.vote_average || 0,
       };
 
-      // Add movie to the database
       movie = await Movie.create(movieDetails);
     }
 
-    // Create shows
+    // Build show documents
     const showsToCreate = [];
 
-    showsInput.forEach((show) => {
-      const { hall, date, times } = show;
+    showsInput.forEach((s) => {
+      const { hall, date, times } = s;
       if (!hall || !date || !Array.isArray(times)) return;
 
       times.forEach((time) => {
+        const showDateTime = new Date(`${date}T${time}`);
+        if (isNaN(showDateTime.getTime())) return;
+
+        // Validate price object fields
+        const regular = Number(price?.regular ?? NaN);
+        const vip = Number(price?.vip ?? NaN);
+        if (Number.isNaN(regular) || Number.isNaN(vip)) return;
+
         showsToCreate.push({
-          movie: movie._id,
-          showDateTime: new Date(`${date}T${time}`),
-          showPrice: {
-            regular: price.regular,
-            vip: price.vip,
-          },
+          movie: movie._id.toString(),
+          showDateTime,
+          showPrice: { regular, vip },
           hall,
           type: type || "2D",
-          occupiedSeats: {},
+          occupiedSeats: { regular: [], vip: [] },
         });
       });
     });
 
-    if (showsToCreate.length > 0) await Show.insertMany(showsToCreate);
+    if (showsToCreate.length === 0) {
+      return res.status(400).json({ success: false, message: "No valid shows to add." });
+    }
 
-    res.json({ success: true, message: "Shows added successfully." });
+    await Show.insertMany(showsToCreate);
+
+    return res.json({ success: true, message: "Shows added successfully." });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error("addShow error:", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
 
 
 
@@ -144,3 +200,27 @@ export const getShow = async (req, res) =>{
         res.json({success: false, message: error.message})
 }
 }
+
+export const getAllShowsCombined = async (req, res) => {
+  try {
+    const [tmdbShows, manualShows] = await Promise.all([
+      Show.find({ showDateTime: { $gte: new Date() } })
+        .populate("movie")
+        .sort({ showDateTime: 1 }),
+      ManualShow.find({ showDateTime: { $gte: new Date() } })
+        .populate("movie")
+        .sort({ showDateTime: 1 }),
+    ]);
+
+    // Add a flag so frontend knows where each show came from
+    const allShows = [
+      ...tmdbShows.map((show) => ({ ...show._doc, isManual: false })),
+      ...manualShows.map((show) => ({ ...show._doc, isManual: true })),
+    ];
+
+    res.json({ success: true, shows: allShows });
+  } catch (error) {
+    console.error("Get All Shows Combined Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
