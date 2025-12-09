@@ -25,7 +25,6 @@ const AdminReservations = () => {
   }, []);
 
   const handleDelete = async (id) => {
-   
     try {
       await axios.delete(`/api/reserve/delete/${id}`);
       toast.success("Reservation deleted ✅");
@@ -37,7 +36,7 @@ const AdminReservations = () => {
 
   const handleApprove = async (id) => {
     try {
-      await axios.patch(`/api/reserve/approve/${id}`); // backend should update approved field
+      await axios.patch(`/api/reserve/approve/${id}`);
       toast.success("Reservation approved ✅");
       setReservations(
         reservations.map((res) =>
@@ -77,7 +76,9 @@ const AdminReservations = () => {
               ].map((head) => (
                 <th
                   key={head}
-                  className="px-4 py-3 text-left text-sm font-semibold tracking-wide uppercase"
+                  className={`px-4 py-3 text-left text-sm font-semibold tracking-wide uppercase ${
+                    head === "Message" ? "w-96" : ""
+                  }`}
                 >
                   {head}
                 </th>
@@ -120,7 +121,12 @@ const AdminReservations = () => {
                   </td>
                   <td className="px-4 py-2">{res.eventStartTime}</td>
                   <td className="px-4 py-2">{res.eventEndTime}</td>
-                  <td className="px-4 py-2">{res.message || "-"}</td>
+
+                  {/* Expanded Message */}
+                  <td className="px-4 py-2 w-96 break-words whitespace-pre-line">
+                    {res.message || "-"}
+                  </td>
+
                   <td className="px-4 py-2">
                     {res.approved ? (
                       <span className="bg-green-500 text-white px-2 py-1 rounded-full text-xs">
