@@ -6,7 +6,7 @@ import Upcoming from "../models/Upcoming.js";
 export const addUpcoming = async (req, res, next) => {
   try {
     // read raw fields
-    const { title, description, release_date, language, runtime } = req.body;
+    const { title, description, release_date, come_date ,language, runtime } = req.body;
 
     // === normalize genres ===
     const rawGenres =
@@ -27,7 +27,7 @@ export const addUpcoming = async (req, res, next) => {
     }
 
     // quick validation (genres considered)
-    if (!title || !description || !release_date || !language || !runtime || genres.length === 0) {
+    if (!title || !description || !release_date || !come_date || !language || !runtime || genres.length === 0) {
       return res
         .status(400)
         .json({ success: false, message: "All fields are required (including at least one genre)." });
@@ -135,6 +135,7 @@ export const addUpcoming = async (req, res, next) => {
       title,
       description,
       release_date,
+      come_date,
       language,
       genres, // stored as array
       runtime,
