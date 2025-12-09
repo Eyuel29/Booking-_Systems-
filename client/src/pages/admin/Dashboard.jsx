@@ -80,55 +80,62 @@ const Dashboard = () => {
       <div className="relative flex flex-wrap gap-6 mt-4 max-w-5xl">
         <BlurCircle top="100px" left="-10%" />
         {dashboardData.activeShows?.length > 0 ? (
-          dashboardData.activeShows.map((show) => (
-            <div
-              key={show._id}
-              className="w-56 rounded-xl overflow-hidden bg-gradient-to-b from-primary/20 to-primary/5 border border-primary/30 shadow-lg hover:shadow-2xl hover:-translate-y-2 transition-all duration-300"
-            >
-              {/* Poster */}
-              <div className="relative">
-                <img
-                  src={image_base_url + show.movie?.poster_path}
-                  alt={show.movie?.title || "Movie Poster"}
-                  className="h-64 w-full object-cover rounded-t-xl"
-                />
-                <div className="absolute top-2 left-2 bg-primary/70 px-2 py-1 rounded text-xs font-semibold text-white">
-                  {show.type || "Standard"}
+          dashboardData.activeShows.map((show) => {
+            const movie = show.movie || {};
+
+            // Compute poster src with proper fallback
+            const posterSrc =
+              (typeof movie.poster_path === "string" && movie.poster_path) ||
+              (movie.poster_path?.url) ||
+              (movie.poster_path?.secure_url) ||
+              "/images/default-poster.jpg"; // fallback if nothing
+
+            return (
+              <div
+                key={show._id}
+                className="w-56 rounded-xl overflow-hidden bg-gradient-to-b from-primary/20 to-primary/5 border border-primary/30 shadow-lg hover:shadow-2xl hover:-translate-y-2 transition-all duration-300"
+              >
+                {/* Poster */}
+                <div className="relative">
+                  <img
+                    src={posterSrc.startsWith("http") ? posterSrc : image_base_url + posterSrc}
+                    alt={movie.title || "Movie Poster"}
+                    className="h-64 w-full object-cover rounded-t-xl"
+                  />
+                  <div className="absolute top-2 left-2 bg-primary/70 px-2 py-1 rounded text-xs font-semibold text-white">
+                    {show.type || "Standard"}
+                  </div>
+                </div>
+
+                {/* Movie title */}
+                <p className="font-bold text-lg p-2 truncate text-white">{movie.title || "Untitled"}</p>
+
+                {/* Details */}
+                <div className="px-3 pb-3 text-sm text-gray-300 space-y-1">
+                  <p>
+                    <span className="font-medium text-gray-200">Hall:</span> {show?.hall ?? "N/A"}
+                  </p>
+                  <p>
+                    <span className="font-medium text-gray-200">Regular Price:</span> {currency} {show.showPrice?.regular || 0}
+                  </p>
+                  <p>
+                    <span className="font-medium text-gray-200">VIP Price:</span> {currency} {show.showPrice?.vip || 0}
+                  </p>
+                </div>
+
+                {/* Rating & Date */}
+                <div className="items-center justify-between px-3 pb-3">
+                  <p className="flex items-center gap-1 text-sm text-yellow-400 mt-1">
+                    <StarIcon className="w-4 h-4 fill-yellow-500" />
+                    {movie.vote_average?.toFixed(1) || "0.0"}
+                  </p>
+                  <p className="text-xs ml-6 text-gray-400">
+                    {show.showDateTime ? dateFormat(show.showDateTime) : ""}
+                  </p>
                 </div>
               </div>
-
-              {/* Movie title */}
-              <p className="font-bold text-lg p-2 truncate text-white">{show.movie?.title || "Untitled"}</p>
-
-              {/* Details */}
-              <div className="px-3 pb-3 text-sm text-gray-300 space-y-1">
-                <p>
-                  <span className="font-medium text-gray-200">Hall:</span>{" "}
-                  {show?.hall ?? "N/A"}
-                </p>
-                <p>
-                  <span className="font-medium text-gray-200">Regular Price:</span>{" "}
-                  {currency} {show.showPrice?.regular || 0}
-                </p>
-                <p>
-                  <span className="font-medium text-gray-200">VIP Price:</span>{" "}
-                  {currency} {show.showPrice?.vip || 0}
-                </p>
-              </div>
-
-              {/* Rating & Date */}
-              <div className="items-center justify-between px-3 pb-3">
-                <p className="flex items-center gap-1 text-sm text-yellow-400 mt-1">
-                  <StarIcon className="w-4 h-4 fill-yellow-500" />
-                  {show.movie?.vote_average?.toFixed(1) || "0.0"}
-                </p>
-              <p className="text-xs ml-6 text-gray-400">
-  {show.showDateTime ? dateFormat(show.showDateTime) : ""}
-</p>
-
-              </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <p className="text-gray-400">No active shows available</p>
         )}
