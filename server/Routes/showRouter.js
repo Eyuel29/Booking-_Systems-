@@ -26,7 +26,7 @@ showRouter.get("/:movieId", getShow);
 
 /* ------------------ MANUAL MOVIES ------------------ */
 // Add new manual movie
-showRouter.post("/manual/movie/add", protectAdmin, addMovies);
+showRouter.post("/manual/movie/add",  addMovies);
 
 
 
