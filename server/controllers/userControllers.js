@@ -3,6 +3,7 @@ import Booking from "../models/Booking.js";
 import Movie from "../models/Movie.js";
 
 
+
 export const getUserBookings = async (req, res) => {
     try{
         const user = req.auth().userId;
@@ -56,6 +57,7 @@ export const updateFavorite = async (req, res) => {
 
 
 
+
 export const getFavorites = async (req, res) => {
   try {
    const { userId } = req.auth();// ✅ Correct way to access auth info
@@ -77,3 +79,5 @@ export const getFavorites = async (req, res) => {
     });
   }
 };
+
+
