@@ -12,6 +12,7 @@ const upcomingSchema = new mongoose.Schema(
         required: true
     },
     release_date: { type: String, required: true },
+    come_date: { type: String, required: true },
     language: { type: String },
     genres: { type: [String], required: true },
     casts: [
