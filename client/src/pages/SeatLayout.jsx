@@ -144,7 +144,7 @@ const ItemCard = ({ item, activeCard, handleCardClick, quantities, updateQuantit
       </p>
 
       {showControls && (
-        <div className="flex items-center justify-center mt-2 gap-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-center mt-2" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => updateQuantity(item._id, -1)}
             disabled={!qty}
@@ -523,33 +523,32 @@ const SeatLayout = () => {
 
     try {
       const token = await getToken();
-// Calculate payable totals
-const seatsTotal = pricePerSeat * selectedSeats.length;
-const totalAmount = seatsTotal + totalSnacksPrice;
+      // Calculate payable totals
+      const seatsTotal = pricePerSeat * selectedSeats.length;
+      const totalAmount = seatsTotal + totalSnacksPrice;
 
-// Build properly structured snack data
-const formattedSnacks = wantSnacks
-  ? selectedSnackItems.map((snack) => ({
-      name: snack.name,
-      price: snack.price,
-      quantity: quantities[snack._id] || 0,
-    }))
-  : [];
+      // Build properly structured snack data
+      const formattedSnacks = wantSnacks
+        ? selectedSnackItems.map((snack) => ({
+            name: snack.name,
+            price: snack.price,
+            quantity: quantities[snack._id] || 0,
+          }))
+        : [];
 
-// Send full booking info to backend
-const { data } = await axios.post(
-  "/api/booking/create",
-  {
-    showId: selectedTime.showId,
-    selectedSeats,
-    category: selectedCategory,
-    wantSnacks,
-    snacks: formattedSnacks, // ✅ full snack info
-    totalAmount, // ✅ send full payable amount (seats + snacks)
-  },
-  { headers: { Authorization: `Bearer ${token}` } }
-);
-
+      // Send full booking info to backend
+      const { data } = await axios.post(
+        "/api/booking/create",
+        {
+          showId: selectedTime.showId,
+          selectedSeats,
+          category: selectedCategory,
+          wantSnacks,
+          snacks: formattedSnacks, // ✅ full snack info
+          totalAmount, // ✅ send full payable amount (seats + snacks)
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
       if (data.success) {
         toast.success(data.message);
@@ -676,7 +675,6 @@ const { data } = await axios.post(
                       </div>
                     )}
                   </div>
-                  
                 );
               })
             ) : (
@@ -684,9 +682,9 @@ const { data } = await axios.post(
             )}
           </div>
           <div className="flex items-center justify-center gap-2 mt-20">
-               <div className="w-4 h-4 bg-blue-500 rounded-sm"></div>
-              <span className="text-xs text-gray-300">Reserved, already booked so choose other seat </span>
-            </div>
+            <div className="w-4 h-4 bg-blue-500 rounded-sm"></div>
+            <span className="text-xs text-gray-300">Reserved, already booked so choose other seat </span>
+          </div>
         </div>
 
         <div className="flex-1 flex flex-col mt-4 items-center w-full">
@@ -771,164 +769,142 @@ const { data } = await axios.post(
                 })}
               </div>
 
+              {/* selectedSeats summary + snacks + pay */}
               {selectedSeats.length > 0 && (
-  <div className="mt-4 xs:mt-6 w-full">
-    <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-gray-800/30 rounded-lg p-4 xs:p-6">
-      {/* LEFT: totals & seat info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-base sm:text-lg font-semibold text-amber-400 whitespace-nowrap">
-          Total:
-        </p>
-
-        <div className="mt-2">
-          <p className="text-white font-semibold text-lg sm:text-xl md:text-2xl">
-            {currency} {(pricePerSeat * selectedSeats.length).toLocaleString()}
-          </p>
-
-          <p className="text-xs sm:text-sm text-gray-400 mt-1 truncate">
-            {selectedSeats.length} seat{selectedSeats.length !== 1 ? "s" : ""}:
-            <span className="ml-2 inline-block max-w-full">
-              {/* allow horizontal scroll on very small devices */}
-              <span className="inline-block whitespace-nowrap overflow-x-auto scrollbar-hide">
-                {selectedSeats.join(", ") || "—"}
-              </span>
-            </span>
-          </p>
-
-          {/* Snacks summary */}
-          {selectedSnackItems.length > 0 && (
-            <div className="mt-3 text-sm text-gray-200">
-              <p className="text-xs text-amber-300 mb-1">Snacks / Water</p>
-
-              <ul className="list-none space-y-1 max-w-full">
-                {selectedSnackItems.map((it) => (
-                  <li key={it._id} className="text-sm flex justify-between items-center">
-                    <span className="truncate mr-3">{it.name} × {quantities[it._id]}</span>
-                    <span className="text-gray-300 whitespace-nowrap">
-                      {currency} {(it.price * (quantities[it._id] || 0)).toLocaleString()}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-
-              <p className="mt-2 text-sm text-gray-300">
-                Snacks total:
-                <span className="text-white font-semibold ml-2">{currency} {totalSnacksPrice.toLocaleString()}</span>
-              </p>
-
-              <p className="mt-2 text-sm text-amber-300">
-                Payable:
-                <span className="text-white font-semibold ml-2">
-                  {currency} {(pricePerSeat * selectedSeats.length + totalSnacksPrice).toLocaleString()}
-                </span>
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* RIGHT: snack toggle + pay */}
-      <div className="flex flex-col sm:flex-row items-center gap-3 relative w-full md:w-auto">
-        <div className="relative w-full md:w-auto">
-          <button
-            onClick={() => setWantSnacks((v) => !v)}
-            aria-expanded={wantSnacks}
-            aria-controls="snack-panel"
-            className="w-full md:w-auto bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-full text-sm flex items-center gap-2 justify-center"
-          >
-            {wantSnacks ? "Hide snacks" : "Do you want snacks?"}
-          </button>
-
-          {wantSnacks && (
-            <div
-              id="snack-panel"
-              className={`
-                /* full-width, stacked panel on small screens; absolute dropdown on md+ */
-                mt-2 w-full md:w-[420px] 
-                ${/* absolute for md+ */ ""} 
-                md:absolute left-0 md:top-full md:right-0
-                max-h-[60vh] md:max-h-[360px] overflow-auto
-                bg-gray-900/95 border border-primary/30 p-3 rounded-lg shadow-xl z-50
-              `}
-              role="dialog"
-              aria-modal="false"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-semibold text-white">Choose snacks</h4>
-                <button
-                  onClick={() => setWantSnacks(false)}
-                  className="text-xs text-gray-400 hover:text-white"
-                  aria-label="Close snacks panel"
-                >
-                  Close
-                </button>
-              </div>
-
-              {/* no-snacks state */}
-              {(!snacksData || snacksData.length === 0) ? (
-                <p className="text-sm text-gray-400">No snacks available right now.</p>
-              ) : (
-                <div className="space-y-2">
-                  {snacksData.map((item) => (
-                    <div key={item._id} className="flex items-center justify-between gap-3 p-2 bg-gray-800/30 rounded">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <img
-                          src={item.image?.url || item.image}
-                          alt={item.name}
-                          className="w-10 h-10 sm:w-12 sm:h-12 object-contain rounded"
-                        />
+                <div className="mt-4 xs:mt-6 w-full">
+                  <div className="flex flex-col md:flex-row items-stretch md:items-start justify-between gap-4 bg-gradient-to-br from-gray-800/40 to-gray-900/30 rounded-xl p-4 xs:p-6 shadow-sm">
+                    {/* LEFT: totals & seat info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{item.name}</p>
-                          <p className="text-xs text-gray-400 truncate">{item.desc}</p>
-                          <p className="text-xs text-amber-300">{currency} {item.price}</p>
+                          <p className="text-base sm:text-lg font-semibold text-amber-400">Total</p>
+                          <p className="text-white font-extrabold text-lg sm:text-xl md:text-2xl mt-1">
+                            {currency} {(pricePerSeat * selectedSeats.length).toLocaleString()}
+                          </p>
+
+                          <p className="text-xs sm:text-sm text-gray-400 mt-2 truncate">
+                            {selectedSeats.length} seat{selectedSeats.length !== 1 ? "s" : ""}:
+                            <span className="ml-2 inline-block max-w-full">
+                              <span className="inline-block whitespace-nowrap overflow-x-auto scrollbar-hide">
+                                {selectedSeats.join(", ") || "—"}
+                              </span>
+                            </span>
+                          </p>
+                        </div>
+
+                        {/* compact per-seat price on desktop */}
+                        <div className="hidden sm:flex flex-col items-end gap-1">
+                          <span className="text-xs text-gray-300">Price / seat</span>
+                          <span className="text-sm font-semibold text-white">{currency} {pricePerSeat?.toLocaleString()}</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => updateQuantity(item._id, -1)}
-                          disabled={!(quantities[item._id] > 0)}
-                          className={`px-2 py-1 rounded-full font-bold ${quantities[item._id] > 0 ? "bg-primary text-white" : "bg-gray-600 text-gray-300 cursor-not-allowed"}`}
-                        >
-                          -
-                        </button>
+                      {/* Snacks summary */}
+                      {selectedSnackItems.length > 0 && (
+                        <div className="mt-4 text-sm text-gray-200 bg-gray-900/20 border border-gray-700/30 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs text-amber-300 font-medium">Snacks · Water</p>
+                            <p className="text-xs text-gray-300">{currency} {totalSnacksPrice.toLocaleString()}</p>
+                          </div>
 
-                        <span className="w-6 text-center text-sm">{quantities[item._id] || 0}</span>
+                          <ul className="list-none space-y-1 max-w-full">
+                            {selectedSnackItems.map((it) => (
+                              <li key={it._id} className="flex justify-between items-center text-sm">
+                                <span className="truncate mr-3">{it.name} × {quantities[it._id]}</span>
+                                <span className="text-gray-300 whitespace-nowrap">
+                                  {currency} {(it.price * (quantities[it._id] || 0)).toLocaleString()}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
 
-                        <button
-                          onClick={() => updateQuantity(item._id, +1)}
-                          className="px-2 py-1 bg-primary text-white rounded-full font-bold"
-                        >
-                          +
-                        </button>
-                      </div>
+                          <div className="mt-3 flex items-center justify-between">
+                            <span className="text-2xl text-gray-400">Payable</span>
+                            <span className="text-2xl font-semibold text-amber-300">
+                              {currency} {(pricePerSeat * selectedSeats.length + totalSnacksPrice).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ))}
 
-                  <div className="mt-2 flex items-center justify-between">
-                    <p className="text-sm text-gray-300">Snacks total:</p>
-                    <p className="text-sm font-semibold text-white">{currency} {totalSnacksPrice.toLocaleString()}</p>
+                    {/* RIGHT: Snacks toggle + inline list + Pay Now */}
+                    <div className="flex flex-col w-full md:w-[320px] gap-3">
+                      {/* Toggle */}
+                      <button
+                        onClick={() => setWantSnacks(v => !v)}
+                        aria-expanded={wantSnacks}
+                        aria-controls="snack-list"
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-full text-sm transition ${
+                          wantSnacks ? 'bg-amber-400/10 border border-amber-300 text-amber-300' : 'bg-gray-700 hover:bg-gray-600 text-white'
+                        }`}
+                      >
+                        <span>{wantSnacks ? 'I don\'t wnat snacks' : 'Do you want snacks?'}</span>
+                        <span className="text-xs text-gray-300">{totalSnacksPrice ? `${currency} ${totalSnacksPrice.toLocaleString()}` : ''}</span>
+                      </button>
+
+                      {/* Inline snack list (appears above Pay) */}
+                      {wantSnacks && (
+                        <div id="snack-list" className="mt-1 bg-gray-900/95 border border-primary/30 p-3 rounded-lg shadow-lg">
+                          {(!snacksData || snacksData.length === 0) ? (
+                            <p className="text-sm text-gray-400">No snacks available right now.</p>
+                          ) : (
+                            <div className="flex flex-col gap-2 max-h-56 overflow-auto pr-1">
+                              {snacksData.map((item) => (
+                                <div key={item._id} className="flex items-center justify-between gap-3 text-sm">
+                                  <div className="min-w-0 pr-2 flex items-center gap-3">
+                                    <img src={item.image?.url || item.image} alt={item.name} className="w-8 h-8 object-contain rounded" />
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-medium">{item.name}</p>
+                                      <p className="text-xs text-gray-400 truncate">{item.desc}</p>
+                                      <p className="text-xs text-amber-300">{currency} {item.price}</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => updateQuantity(item._id, -1)}
+                                      disabled={!(quantities[item._id] > 0)}
+                                      className={`px-2 py-1 rounded-full text-sm font-bold ${quantities[item._id] > 0 ? 'bg-primary text-white' : 'bg-gray-600 text-gray-300 cursor-not-allowed'}`}
+                                      aria-label={`Decrease ${item.name}`}
+                                    >
+                                      -
+                                    </button>
+
+                                    <span className="w-6 text-center text-sm">{quantities[item._id] || 0}</span>
+
+                                    <button
+                                      onClick={() => updateQuantity(item._id, +1)}
+                                      className="px-2 py-1 bg-primary text-white rounded-full text-sm font-bold"
+                                      aria-label={`Increase ${item.name}`}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Snacks subtotal */}
+                          <div className="mt-3 flex items-center justify-between text-sm text-gray-300 font-semibold">
+                            <span>Snacks total</span>
+                            <span>{currency} {totalSnacksPrice.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Pay Now */}
+                      <button
+                        onClick={handlePayNow}
+                        className="w-full bg-gradient-to-br from-amber-400 to-amber-300 text-black font-semibold px-4 py-3 rounded-full shadow-lg hover:shadow-2xl transition transform active:scale-95"
+                      >
+                        Pay Now
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
-            </div>
-          )}
-        </div>
-
-        {/* Pay button: full width on small screens, auto on md+ */}
-        <div className="w-full md:w-auto">
-          <button
-            onClick={handlePayNow}
-            className="w-full md:w-auto bg-primary hover:bg-primary-dull text-black font-semibold px-4 xs:px-6 py-2 xs:py-3 rounded-full transition-all active:scale-95 text-sm xs:text-base"
-          >
-            Pay Now
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
             </div>
           ) : (
             <div className="w-full flex justify-center py-8">
