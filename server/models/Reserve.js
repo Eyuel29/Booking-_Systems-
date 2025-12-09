@@ -2,6 +2,18 @@ import mongoose from "mongoose";
 
 const reserveSchema = new mongoose.Schema(
   {
+    title: {
+      type: String,
+      enum: [
+     
+        
+        "Ato",  
+        "W/ro",  
+        "W/rt",
+        "Dr", 
+      ],
+      required: [true, "Title is required"],
+    },
     SenderName: {
       type: String,
       minLength: [2, "Name must contain at least 2 characters"],
