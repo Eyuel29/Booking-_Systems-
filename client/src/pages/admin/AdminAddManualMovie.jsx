@@ -1,209 +1,323 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
-import { Film, Users, Calendar, Ticket, Plus } from "lucide-react";
+import { Film, Users, Plus, X } from "lucide-react";
+import Title from "./Title";
 
 const AdminAddManualMovie = () => {
+  const backdropRef = useRef(null);
+  const trailerRef = useRef(null);
+  const castFileRefs = useRef({});
+
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
   const [title, setTitle] = useState("");
   const [overview, setOverview] = useState("");
-  const [runtime, setRuntime] = useState(120);
   const [releaseDate, setReleaseDate] = useState("");
-  const [genres, setGenres] = useState("");
-  const [type, setType] = useState("2D");
-  const [poster, setPoster] = useState(null);
-  const [backdrop, setBackdrop] = useState(null);
-  const [trailer, setTrailer] = useState(null);
-  const [casts, setCasts] = useState([{ name: "", image: null }]);
-  const [shows, setShows] = useState([{ hall: "", date: "", times: [""] }]);
-  const [price, setPrice] = useState({ regular: 50, vip: 100 });
-  const [loading, setLoading] = useState(false);
+  const [originalLanguage, setOriginalLanguage] = useState("English");
+  const [genresText, setGenresText] = useState("");
+  const [genresArray, setGenresArray] = useState([]);
 
-  // Preview helpers (optional)
-  const [posterPreview, setPosterPreview] = useState(null);
+  const [runtime, setRuntime] = useState("");
+  const [voteAverage, setVoteAverage] = useState("");
+
+  const [backdropPath, setBackdropPath] = useState(null);
   const [backdropPreview, setBackdropPreview] = useState(null);
 
-  const handleCastChange = (index, field, value) => {
-    const newCasts = [...casts];
-    newCasts[index][field] = value;
-    setCasts(newCasts);
+  const [trailer, setTrailer] = useState(null);
+  const [trailerPreview, setTrailerPreview] = useState(null);
+
+  const [casts, setCasts] = useState([{ name: "", file: null, previewUrl: null }]);
+
+  useEffect(() => {
+    return () => {
+      if (backdropPreview) URL.revokeObjectURL(backdropPreview);
+      if (trailerPreview) URL.revokeObjectURL(trailerPreview);
+      casts.forEach((c) => c.previewUrl && URL.revokeObjectURL(c.previewUrl));
+    };
+  }, [backdropPreview, trailerPreview, casts]);
+
+  const parseGenres = () => {
+    const arr = genresText.split(",").map((g) => g.trim()).filter(Boolean);
+    setGenresArray(arr);
   };
 
-  const addCast = () => setCasts([...casts, { name: "", image: null }]);
-  const addShow = () => setShows([...shows, { hall: "", date: "", times: [""] }]);
-  const addShowTime = (showIndex) => {
-    const newShows = [...shows];
-    newShows[showIndex].times.push("");
-    setShows(newShows);
+  const handleBackdropChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    setBackdropPath(file);
+    setBackdropPreview(file ? URL.createObjectURL(file) : null);
   };
 
-  // Ensure runtime and prices are numbers on change
-  const handleRuntimeChange = (val) => setRuntime(Number(val || 0));
-  const handlePriceChange = (field, val) => setPrice(prev => ({ ...prev, [field]: Number(val || 0) }));
+  const handleTrailerChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    setTrailer(file);
+    setTrailerPreview(file ? URL.createObjectURL(file) : null);
+  };
+
+  const addCast = () =>
+    setCasts((s) => [...s, { name: "", file: null, previewUrl: null }]);
+
+  const removeCast = (idx) => {
+    setCasts((prev) => {
+      const arr = [...prev];
+      if (arr[idx]?.previewUrl) URL.revokeObjectURL(arr[idx].previewUrl);
+      arr.splice(idx, 1);
+      return arr.length ? arr : [{ name: "", file: null, previewUrl: null }];
+    });
+  };
+
+  const onCastNameChange = (idx, value) =>
+    setCasts((s) => s.map((c, i) => (i === idx ? { ...c, name: value } : c)));
+
+  const onCastFileChange = (idx, file) =>
+    setCasts((s) =>
+      s.map((c, i) =>
+        i === idx
+          ? {
+              ...c,
+              file,
+              previewUrl: file ? URL.createObjectURL(file) : null,
+            }
+          : c
+      )
+    );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setMessage("");
 
-    // Basic client-side validation
-    if (!title.trim()) return alert("Title is required.");
-    if (!poster || !backdrop) return alert("Poster and Backdrop are required.");
-    if (shows.some(s => !s.hall.trim() || !s.date)) return alert("Fill hall & date for each show.");
-    // ensure each show has at least one time filled
-    for (const s of shows) {
-      if (!s.times.some(t => t && t.trim())) return alert("Each show must have at least one time.");
+    const parsedGenres =
+      genresArray.length > 0
+        ? genresArray
+        : genresText.split(",").map((g) => g.trim()).filter(Boolean);
+
+    if (parsedGenres.length === 0) {
+      return setMessage("Please add at least one genre");
     }
+
+    if (!title || !overview || !releaseDate || !runtime || voteAverage === "") {
+      return setMessage("Please fill all required fields.");
+    }
+
+    if (!backdropPath) {
+      return setMessage("Poster is required.");
+    }
+
+    const formData = new FormData();
+    formData.append("title", title);
+    formData.append("overview", overview);
+    formData.append("release_date", releaseDate);
+    formData.append("original_language", originalLanguage);
+    formData.append("runtime", runtime);
+    formData.append("vote_average", voteAverage);
+    formData.append("genres", JSON.stringify(parsedGenres));
+    formData.append("genres_text", parsedGenres.join(", "));
+    formData.append("backdrop_path", backdropPath);
+    if (trailer) formData.append("trailer", trailer);
+
+    const validCasts = casts.filter((c) => c.name.trim() !== "");
+    formData.append(
+      "casts",
+      JSON.stringify(validCasts.map((c) => ({ name: c.name })))
+    );
+
+    validCasts.forEach((c, idx) => {
+      if (c.file) formData.append(`castsImage_${idx}`, c.file);
+    });
 
     try {
       setLoading(true);
-
-      const formData = new FormData();
-      formData.append("title", title);
-      formData.append("overview", overview);
-      formData.append("runtime", Number(runtime)); // ensure number
-      formData.append("release_date", releaseDate);
-      formData.append("genres", JSON.stringify(genres.split(",").map(g => g.trim()).filter(Boolean)));
-      formData.append("type", type);
-
-      // Files (use keys that backend expects)
-      formData.append("poster", poster, poster.name);
-      formData.append("backdrop", backdrop, backdrop.name);
-      if (trailer) formData.append("trailer", trailer, trailer.name);
-
-      // Casts: names JSON + append images as multiple files under same key
-      const castsPayload = casts.map(c => ({ name: c.name }));
-      formData.append("casts", JSON.stringify(castsPayload));
-      casts.forEach((c) => {
-        if (c.image) formData.append("castsImages", c.image, c.image.name);
+      const res = await axios.post("http://localhost:3000/api/show/manual/movie/add", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
-      // Shows and price
-      formData.append("shows", JSON.stringify(shows));
-      formData.append("price", JSON.stringify({ regular: Number(price.regular), vip: Number(price.vip) }));
+      setMessage(res.data?.message || "Movie added successfully.");
 
-      // Debug: log keys and file types (can't print file content)
-      console.group("FormData entries");
-      for (let pair of formData.entries()) {
-        const [k, v] = pair;
-        console.log(k, v instanceof File ? `${v.name} (${v.type}, ${v.size} bytes)` : v);
-      }
-      console.groupEnd();
-
-      // IMPORTANT: do NOT set Content-Type header manually (browser will add boundary)
-      const resp = await axios.post("/api/shows/manual-add", formData /* no headers here */);
-
-      console.log("Server response:", resp.status, resp.data);
-      alert(resp.data?.message || "Movie added successfully");
-      setLoading(false);
+      // Reset form
+      setTitle("");
+      setOverview("");
+      setReleaseDate("");
+      setOriginalLanguage("English");
+      setGenresText("");
+      setGenresArray([]);
+      setRuntime("");
+      setVoteAverage("");
+      setBackdropPath(null);
+      setBackdropPreview(null);
+      setTrailer(null);
+      setTrailerPreview(null);
+      setCasts([{ name: "", file: null, previewUrl: null }]);
+      if (backdropRef.current) backdropRef.current.value = "";
+      if (trailerRef.current) trailerRef.current.value = "";
+      Object.values(castFileRefs.current).forEach((r) => {
+        if (r?.current) r.current.value = "";
+      });
     } catch (err) {
-      // Helpful detailed error logging
-      console.error("Full error object:", err);
-      if (err.response) {
-        console.error("Server responded with:", err.response.status, err.response.data);
-        alert(`Server error: ${err.response.data?.message || JSON.stringify(err.response.data)}`);
-      } else if (err.request) {
-        console.error("No response received (network?):", err.request);
-        alert("No response from server. Check server is running and CORS is allowed.");
-      } else {
-        console.error("Error building request:", err.message);
-        alert("Request error: " + err.message);
-      }
+      console.error("Upload error:", err);
+      setMessage(err.response?.data?.message || "Upload failed.");
+    } finally {
       setLoading(false);
     }
   };
 
-  // File input handlers with previews
-  const onPosterChange = (f) => {
-    setPoster(f);
-    setPosterPreview(f ? URL.createObjectURL(f) : null);
-  };
-  const onBackdropChange = (f) => {
-    setBackdrop(f);
-    setBackdropPreview(f ? URL.createObjectURL(f) : null);
-  };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto bg-gray-900 text-white rounded-2xl shadow-2xl">
-      <h2 className="text-4xl font-extrabold mb-8 text-amber-400 border-b border-amber-500 pb-3 flex items-center gap-3">
-        <Film size={36} /> Add Manual Movie & Shows
-      </h2>
+     <div>
+      <Title text1="Add" text2="Movie" />
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Movie Info */}
-        <section className="bg-gray-800 p-6 rounded-xl shadow-inner space-y-5">
-          <h3 className="text-2xl font-semibold text-amber-300 flex items-center gap-2"><Film size={24} /> Movie Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input placeholder="Title" className="input rounded-lg p-3 text-black" value={title} onChange={e => setTitle(e.target.value)} required />
-            <input type="date" className="input rounded-lg p-3 text-black" value={releaseDate} onChange={e => setReleaseDate(e.target.value)} />
-            <input placeholder="Genres (comma separated)" className="input rounded-lg p-3 text-black" value={genres} onChange={e => setGenres(e.target.value)} />
-            <input type="number" placeholder="Runtime (min)" className="input rounded-lg p-3 text-black" value={runtime} onChange={e => handleRuntimeChange(e.target.value)} />
-            <select className="input rounded-lg p-3 text-black" value={type} onChange={e => setType(e.target.value)}>
-              <option value="2D">2D</option>
-              <option value="3D">3D</option>
-            </select>
+      <div className="p-6 max-w-5xl mx-auto text-white">
+        <p className="text-sm text-gray-400">Create a manual movie entry with poster, trailer and cast.</p>
 
+        <div className="space-y-6 bg-gray-900/60 border border-gray-700 p-6 rounded-2xl shadow-lg backdrop-blur-sm">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* top grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                placeholder="🎬 Title *"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="p-3 rounded-lg bg-gray-800 border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+           <input
+  type="date"
+  value={releaseDate}
+  onChange={(e) => setReleaseDate(e.target.value)}
+  max={new Date().toISOString().split("T")[0]} // ✅ today and past allowed, future disabled
+  className="p-3 rounded-lg bg-gray-800 border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+/>
+
+              <input
+                placeholder="🌐 Original language"
+                value={originalLanguage}
+                onChange={(e) => setOriginalLanguage(e.target.value)}
+                className="p-3 rounded-lg bg-gray-800 border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+              <input
+                type="number"
+                placeholder="⏱ Runtime (min)"
+                value={runtime}
+                onChange={(e) => setRuntime(e.target.value)}
+                className="p-3 rounded-lg bg-gray-800 border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            {/* overview */}
             <div>
-              <label className="block text-xs mb-1">Poster</label>
-              <input type="file" accept="image/*" onChange={e => onPosterChange(e.target.files[0])} />
-              {posterPreview && <img src={posterPreview} alt="poster" className="mt-2 w-24 h-36 object-cover rounded" />}
+              <label className="block text-sm font-medium mb-2 text-gray-300">📝 Overview</label>
+              <textarea
+                value={overview}
+                onChange={(e) => setOverview(e.target.value)}
+                rows={4}
+                className="w-full p-3 rounded-lg bg-gray-800 border border-gray-700 focus:ring-2 focus:ring-blue-500 resize-none"
+              />
             </div>
 
-            <div>
-              <label className="block text-xs mb-1">Backdrop</label>
-              <input type="file" accept="image/*" onChange={e => onBackdropChange(e.target.files[0])} />
-              {backdropPreview && <img src={backdropPreview} alt="backdrop" className="mt-2 w-40 h-24 object-cover rounded" />}
+            {/* rating & genres */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="10"
+                placeholder="⭐ Rating (0-10)"
+                value={voteAverage}
+                onChange={(e) => setVoteAverage(e.target.value)}
+                className="p-3 rounded-lg bg-gray-800 border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+              <div>
+                <input
+                  placeholder="🎭 Genres (comma separated)"
+                  value={genresText}
+                  onChange={(e) => setGenresText(e.target.value)}
+                  onBlur={parseGenres}
+                  className="p-3 rounded-lg bg-gray-800 border border-gray-700 w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+                <small className="text-gray-400 block mt-1">
+                  Parsed: <span className="text-blue-400">{genresArray.join(", ")}</span>
+                </small>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs mb-1">Trailer (optional)</label>
-              <input type="file" accept="video/*" onChange={e => setTrailer(e.target.files[0])} />
-            </div>
-          </div>
-
-          <textarea className="w-full p-3 rounded-lg text-black" placeholder="Overview" value={overview} onChange={e => setOverview(e.target.value)} rows={4} />
-        </section>
-
-        {/* Casts */}
-        <section className="bg-gray-800 p-6 rounded-xl shadow-inner space-y-5">
-          <h3 className="text-2xl font-semibold text-amber-300 flex items-center gap-2"><Users size={24} /> Casts</h3>
-          {casts.map((c, idx) => (
-            <div key={idx} className="flex flex-col md:flex-row gap-3 items-center">
-              <input placeholder="Name" className="input rounded-lg p-3 text-black flex-1" value={c.name} onChange={e => handleCastChange(idx, "name", e.target.value)} />
-              <input type="file" accept="image/*" onChange={e => handleCastChange(idx, "image", e.target.files[0])} />
-            </div>
-          ))}
-          <button type="button" onClick={addCast} className="bg-amber-400 text-black px-4 py-2 rounded-lg"> <Plus size={16} /> Add Cast</button>
-        </section>
-
-        {/* Shows */}
-        <section className="bg-gray-800 p-6 rounded-xl shadow-inner space-y-5">
-          <h3 className="text-2xl font-semibold text-amber-300 flex items-center gap-2"><Calendar size={24} /> Shows</h3>
-          {shows.map((s, si) => (
-            <div key={si} className="bg-gray-700 p-4 rounded-lg space-y-3">
-              <div className="flex flex-col md:flex-row gap-3 items-center">
-                <input placeholder="Hall" className="input rounded-lg p-3 text-black flex-1" value={s.hall} onChange={e => { const newShows = [...shows]; newShows[si].hall = e.target.value; setShows(newShows); }} />
-                <input type="date" className="input rounded-lg p-3 text-black" value={s.date} onChange={e => { const newShows = [...shows]; newShows[si].date = e.target.value; setShows(newShows); }} />
+            {/* poster & trailer */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-300">Poster / Backdrop *</label>
+                <input
+                  ref={backdropRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleBackdropChange}
+                  className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary file:text-white hover:file:bg-primary-dull hover:file:text-black cursor-pointer"
+                />
+                {backdropPreview && (
+                  <img src={backdropPreview} alt="poster preview" className="mt-3 w-56 h-32 object-cover rounded-lg border border-gray-700" />
+                )}
               </div>
 
-              <div className="flex flex-wrap gap-2 items-center">
-                {s.times.map((t, ti) => (
-                  <input key={ti} type="time" className="input rounded-lg p-3 text-black" value={t} onChange={e => { const newShows = [...shows]; newShows[si].times[ti] = e.target.value; setShows(newShows); }} />
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-300">Trailer (optional)</label>
+                <input
+                  ref={trailerRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={handleTrailerChange}
+                  className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary-dull file:text-black hover:file:bg-primary hover:file:text-white cursor-pointer"
+                />
+                {trailerPreview && <video src={trailerPreview} controls className="mt-3 w-full max-w-md rounded-lg border border-gray-700" />}
+              </div>
+            </div>
+
+            {/* casts */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-amber-300" />
+                  <h3 className="text-lg font-semibold text-gray-200">🎭 Cast</h3>
+                </div>
+                <button type="button" onClick={addCast} className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded-lg text-sm inline-flex items-center gap-2">
+                  <Plus className="w-4 h-4" /> Add Cast
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {casts.map((cast, idx) => (
+                  <div key={idx} className="flex flex-wrap gap-3 items-center mb-0 bg-gray-800 p-3 rounded-lg border border-gray-700">
+                    <input
+                      value={cast.name}
+                      onChange={(e) => onCastNameChange(idx, e.target.value)}
+                      placeholder="👤 Actor name"
+                      className="p-2 rounded bg-gray-900 border border-gray-700 text-white flex-1 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => onCastFileChange(idx, e.target.files?.[0] || null)}
+                      ref={(el) => (castFileRefs.current[idx] = { current: el })}
+                      className="text-sm text-gray-300 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-primary file:text-white hover:file:bg-primary-dull hover:file:text-black cursor-pointer"
+                    />
+                    {cast.previewUrl && <img src={cast.previewUrl} alt="cast" className="w-12 h-12 object-cover rounded-full border border-gray-600" />}
+                    <button type="button" onClick={() => removeCast(idx)} className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded-lg text-sm inline-flex items-center gap-1">
+                      <X className="w-4 h-4" /> Remove
+                    </button>
+                  </div>
                 ))}
-                <button type="button" onClick={() => addShowTime(si)} className="bg-amber-400 text-black px-3 py-1 rounded-lg"> <Plus size={14} /> Add Time</button>
               </div>
             </div>
-          ))}
-          <button type="button" onClick={addShow} className="bg-amber-400 text-black px-4 py-2 rounded-lg"> <Plus size={16} /> Add Show</button>
-        </section>
 
-        {/* Price */}
-        <section className="bg-gray-800 p-6 rounded-xl shadow-inner space-y-5">
-          <h3 className="text-2xl font-semibold text-amber-300 flex items-center gap-2"><Ticket size={24} /> Price</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input type="number" className="input rounded-lg p-3 text-black" value={price.regular} onChange={e => handlePriceChange("regular", e.target.value)} placeholder="Regular Price" />
-            <input type="number" className="input rounded-lg p-3 text-black" value={price.vip} onChange={e => handlePriceChange("vip", e.target.value)} placeholder="VIP Price" />
-          </div>
-        </section>
-
-        <button type="submit" disabled={loading} className="w-full bg-amber-400 text-black font-bold py-3 rounded-xl">{loading ? "Adding..." : "Add Movie & Shows"}</button>
-      </form>
+            {/* submit */}
+            <div className="pt-2 text-center">
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-6 py-3 bg-amber-500 text-black hover:bg-amber-400 rounded-lg font-semibold tracking-wide transition-all disabled:opacity-60"
+              >
+                {loading ? "Uploading..." : " Add Movie"}
+              </button>
+              {message && <p className="mt-3 text-sm text-amber-300">{message}</p>}
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 };
