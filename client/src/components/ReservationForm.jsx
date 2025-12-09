@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { assets } from '../assets/assets';
-import { Toaster, toast } from "react-hot-toast";
+import { assets } from "../assets/assets";
+import { toast } from "react-hot-toast";
 
 const ReservationForm = () => {
   const [formData, setFormData] = useState({
+    title: "",
     SenderName: "",
     email: "",
     phone: "",
@@ -14,7 +15,7 @@ const ReservationForm = () => {
     ReservedDate: "",
     eventStartTime: "",
     eventEndTime: "",
-     Talk: "", 
+    Talk: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -26,8 +27,9 @@ const ReservationForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Required fields
+    // ✅ Required fields check
     const requiredFields = [
+      "title",
       "SenderName",
       "email",
       "phone",
@@ -36,17 +38,17 @@ const ReservationForm = () => {
       "ReservedDate",
       "eventStartTime",
       "eventEndTime",
-      "Talk", // <-- New required field
+      "Talk",
     ];
 
     for (let field of requiredFields) {
       if (!formData[field]) {
-        toast.error("All required fields must be filled ❌");
+        toast.error("Please fill all required fields ❌");
         return;
       }
     }
 
-    // Time validations
+    // ✅ Time validation
     const [startHour, startMinute] = formData.eventStartTime.split(":").map(Number);
     const [endHour, endMinute] = formData.eventEndTime.split(":").map(Number);
 
@@ -67,13 +69,19 @@ const ReservationForm = () => {
 
     try {
       await axios.post("/api/reserve/Add", formData);
-      
-      // Show toast based on Talk choice
-      if (formData.talk === "Phone") toast.success("I will call you 📞");
-      if (formData.talk === "Email") toast.success("I will email you ✉️");
 
-      // Reset form
+      // ✅ Custom success message based on contact method
+      if (formData.Talk === "Phone") {
+        toast.success(`Thank you ${formData.title} ${formData.SenderName}, we will call you soon 📞`);
+      } else if (formData.Talk === "Email") {
+        toast.success(`Thank you ${formData.title} ${formData.SenderName}, we will email you shortly ✉️`);
+      } else {
+        toast.success(`Reservation submitted successfully ✅`);
+      }
+
+      // ✅ Reset form
       setFormData({
+        title: "",
         SenderName: "",
         email: "",
         phone: "",
@@ -85,8 +93,8 @@ const ReservationForm = () => {
         eventEndTime: "",
         Talk: "",
       });
-
     } catch (err) {
+      console.error(err);
       toast.error(err.response?.data?.message || "Something went wrong ❌");
     } finally {
       setLoading(false);
@@ -95,7 +103,7 @@ const ReservationForm = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6 xl:p-10">
-      <Toaster position="top-right" reverseOrder={false} />
+    
       <div className="w-full max-w-lg xl:max-w-6xl mt-40 bg-gray-800 p-6 sm:p-8 shadow-xl rounded-2xl border border-gray-700">
         <img src={assets.logo} alt="Logo" className="w-16 h-auto mx-auto" />
         <h2 className="text-3xl font-extrabold text-primary mb-4 text-center border-b border-primary pb-2">
@@ -107,21 +115,43 @@ const ReservationForm = () => {
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {/* Full Name */}
-          <div className="flex flex-col xl:flex-row xl:items-center gap-2 xl:gap-4">
-            <label className="text-white w-32 xl:text-right">Full Name:</label>
-            <input
-              type="text"
-              name="SenderName"
-              placeholder="Full Name"
-              value={formData.SenderName}
-              onChange={handleChange}
-              required
-              className="flex-1 border border-gray-700 rounded-lg px-4 py-3 bg-gray-900 text-white focus:outline-none focus:ring-2 focus:ring-primary placeholder-gray-400"
-            />
-          </div>
+          {/* ✅ Title and Full Name */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-4">
+  {/* Title */}
+  <div className="flex flex-col">
+    <label className="text-gray-300 font-medium mb-2">Title:</label>
+    <select
+      name="title"
+      value={formData.title}
+      onChange={handleChange}
+      required
+      className="bg-gray-900 text-white px-3 py-3 rounded-xl border border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary hover:border-primary transition-all duration-300 shadow-inner"
+    >
+      <option value="">Select Title...</option>
+      <option value="Ato">Ato</option>
+      <option value="W/ro">W/ro</option>
+      <option value="W/rt">W/rt</option>
+      <option value="Dr">Dr</option>
+    </select>
+  </div>
+  
+  {/* Full Name */}
+  <div className="flex flex-col">
+    <label className="text-gray-300 font-medium mb-2">Full Name:</label>
+    <input
+      type="text"
+      name="SenderName"
+      placeholder="Full Name"
+      value={formData.SenderName}
+      onChange={handleChange}
+      required
+      className="bg-gray-900 text-white px-4 py-3 rounded-xl border border-gray-700 focus:outline-none focus:ring-2 focus:ring-primary placeholder-gray-400 shadow-inner transition-all duration-300 hover:border-primary"
+    />
+  </div>
+</div>
 
-          {/* Email and Phone */}
+
+          {/* ✅ Email & Phone */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <div className="flex flex-col">
               <label className="text-white">Email:</label>
@@ -149,7 +179,7 @@ const ReservationForm = () => {
             </div>
           </div>
 
-          {/* Event Type and People Attending */}
+          {/* ✅ Event Type and People Attending */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <div className="flex flex-col">
               <label className="text-white">Event Type:</label>
@@ -176,50 +206,46 @@ const ReservationForm = () => {
                 placeholder="Number of People Attending"
                 value={formData.peopleAttend}
                 onChange={handleChange}
-                min="10"
+                min="20"
                 required
                 className="border border-gray-700 rounded-lg px-4 py-3 bg-gray-900 text-white focus:outline-none focus:ring-2 focus:ring-primary placeholder-gray-400"
               />
             </div>
           </div>
 
-        
-          {/* Pick Date and Talk Via */}
-<div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-  {/* Talk Via */}
-  <div className="flex flex-col">
-    <label className="text-white">Talk Via:</label>
+          {/* ✅ Talk Via and Date */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="flex flex-col">
+              <label className="text-white">Talk Via:</label>
+              <select
+                name="Talk"
+                value={formData.Talk}
+                onChange={handleChange}
+                required
+                className="border border-gray-700 rounded-lg px-4 py-3 bg-gray-900 text-white focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+              >
+                <option value="">Select...</option>
+                <option value="Phone">Phone</option>
+                <option value="Email">Email</option>
+              </select>
+            </div>
 
-      <select
-  name="Talk"
-  value={formData.Talk}
-  onChange={handleChange}
-  required
-  className="border border-gray-700 rounded-lg px-4 py-3 bg-gray-900 text-white focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
->
-  <option value="">Select...</option>
-  <option value="Phone">Phone</option>
-  <option value="Email">Email</option>
-</select>
+            <div className="flex flex-col">
+              <label className="text-white">Pick Date:</label>
+             <input
+              type="date"
+              name="ReservedDate"
+              value={formData.ReservedDate}
+              onChange={handleChange}
+              required
+              min={new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split("T")[0]} // prevents today & past
+              className="border border-gray-700 rounded-lg px-4 py-3 bg-gray-900 text-white focus:outline-none focus:ring-2 focus:ring-primary"
+            />
 
-    
-    </div>
+            </div>
+          </div>
 
-  {/* Pick Date */}
-  <div className="flex flex-col">
-    <label className="text-white">Pick Date:</label>
-    <input
-      type="date"
-      name="ReservedDate"
-      value={formData.ReservedDate}
-      onChange={handleChange}
-      required
-      className="border border-gray-700 rounded-lg px-4 py-3 bg-gray-900 text-white focus:outline-none focus:ring-2 focus:ring-primary"
-    />
-  </div>
-</div>
-
-          {/* Start and End Time */}
+          {/* ✅ Start and End Time */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             <div className="flex flex-col">
               <label className="text-white">Start Time:</label>
@@ -249,7 +275,7 @@ const ReservationForm = () => {
             </div>
           </div>
 
-          {/* Message */}
+          {/* ✅ Message */}
           <div className="flex flex-col">
             <label className="text-white">Message:</label>
             <textarea
@@ -262,7 +288,7 @@ const ReservationForm = () => {
             />
           </div>
 
-          {/* Submit Button */}
+          {/* ✅ Submit Button */}
           <button
             type="submit"
             disabled={loading}
