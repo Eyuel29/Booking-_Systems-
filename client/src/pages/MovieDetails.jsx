@@ -182,7 +182,7 @@ const MovieDetails = () => {
         <div className="relative lg:mt-10 flex flex-col gap-3 flex-1 min-w-0 overflow-hidden">
           <div className="relative mt-4 z-20">
             <div className="flex justify-between items-center">
-              <p className="text-primary-dull/78 uppercase underline">{movie.original_language?.toUpperCase()}</p>
+              <p className="text-primary-dull/78 uppercase underline">{movie.language?.toUpperCase()}</p>
               <p className="text-primary-dull bg-primary uppercase border py-1 px-5 border-amber-50/50 rounded">{movie.type || "2D"}</p>
             </div>
 
