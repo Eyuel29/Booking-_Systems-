@@ -3,11 +3,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 import Reserve from "../models/Reserve.js";
 
-// 🧩 Needed to simulate __dirname in ES modules
+//  Needed to simulate __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ✅ Absolute path to your logo image
+//  Absolute path to your logo image
 const logoPath = path.resolve(__dirname, "../assets/logo.png");
 
 export const createReservation = async (req, res) => {
@@ -26,7 +26,7 @@ export const createReservation = async (req, res) => {
       eventEndTime,
     } = req.body;
 
-    // ✅ 1. Validate ReservedDate (not today or past)
+    //  1. Validate ReservedDate (not today or past)
     const today = new Date();
     const reservedDate = new Date(ReservedDate);
 
@@ -40,7 +40,7 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    // ✅ (optional) Limit reservations to within 60 days
+    //  (optional) Limit reservations to within 60 days
     const maxAdvance = new Date();
     maxAdvance.setDate(today.getDate() + 60);
     if (reservedDate > maxAdvance) {
@@ -50,11 +50,11 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    // ✅ 2. Convert times to numbers for comparison
+    //  2. Convert times to numbers for comparison
     const [startHour, startMinute] = eventStartTime.split(":").map(Number);
     const [endHour, endMinute] = eventEndTime.split(":").map(Number);
 
-    // ✅ 3. Check if times are within hall hours (08:00 – 22:00)
+    //  3. Check if times are within hall hours (08:00 – 22:00)
     if (
       startHour < 8 || startHour > 22 ||
       endHour < 8 || endHour > 22
@@ -65,7 +65,7 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    // ✅ 4. Ensure end time is after start time
+    //  4. Ensure end time is after start time
     const startTotal = startHour * 60 + startMinute;
     const endTotal = endHour * 60 + endMinute;
 
@@ -76,7 +76,7 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    // ✅ 5. Save reservation
+    //  5. Save reservation
     const newReserve = await Reserve.create({
       title,
       SenderName,
@@ -91,7 +91,7 @@ export const createReservation = async (req, res) => {
       eventEndTime,
     });
 
-    // ✅ 6. Send Emails
+    //  6. Send Emails
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -174,7 +174,7 @@ export const createReservation = async (req, res) => {
       `,
     });
 
-    // ✅ Response
+    //  Response
     res.status(201).json({
       success: true,
       message: "Reservation created successfully. Emails sent.",
