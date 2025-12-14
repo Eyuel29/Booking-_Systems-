@@ -69,6 +69,41 @@ export const AppProvider = ({ children }) =>{
     }
   }
 
+  const initializePayment = async (bookingId) => {
+    try {
+      const { data } = await axios.post(
+        `/api/payment/initialize/${bookingId}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${await getToken()}`
+          }
+        }
+      )
+      return data
+    } catch (error) {
+      console.error('Payment initialization error:', error)
+      throw error
+    }
+  }
+
+  const verifyPayment = async (txRef) => {
+    try {
+      const { data } = await axios.get(
+        `/api/payment/verify/${txRef}`,
+        {
+          headers: {
+            Authorization: `Bearer ${await getToken()}`
+          }
+        }
+      )
+      return data
+    } catch (error) {
+      console.error('Payment verification error:', error)
+      throw error
+    }
+  }
+
 
   useEffect(()=>{
     fetchShows()
@@ -84,7 +119,8 @@ export const AppProvider = ({ children }) =>{
       axios,
       fetchIsAdmin,
       user, getToken, navigate, isAdmin, shows,
-      favoriteMovies, fetchFavorites, image_base_url
+      favoriteMovies, fetchFavorites, image_base_url,
+      initializePayment, verifyPayment
     }
     return(
       <AppContext.Provider value={value}>

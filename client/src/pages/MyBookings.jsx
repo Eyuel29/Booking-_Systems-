@@ -8,10 +8,11 @@ import { useUser } from "@clerk/clerk-react";
 
 const MyBookings = () => {
   const currency = import.meta.env.VITE_CURENCY || "$";
-  const { axios, getToken, user, image_base_url } = useAppContext();
+  const { axios, getToken, user, image_base_url, initializePayment } = useAppContext();
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showSnacks, setShowSnacks] = useState({}); // track snack visibility per booking
+  const [paymentLoading, setPaymentLoading] = useState({}); // track payment loading per booking
 
   // Fetch bookings
   const getMyBookings = async () => {
@@ -44,6 +45,32 @@ const MyBookings = () => {
   // Toggle snack display for a booking
   const toggleSnacks = (index) => {
     setShowSnacks((prev) => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  // Handle payment initialization
+  const handlePayNow = async (bookingId) => {
+    if (!bookingId) {
+      toast.error("Invalid booking ID");
+      return;
+    }
+
+    setPaymentLoading((prev) => ({ ...prev, [bookingId]: true }));
+
+    try {
+      const response = await initializePayment(bookingId);
+
+      if (response.success && response.data?.checkout_url) {
+        // Redirect to Chapa checkout page
+        window.location.href = response.data.checkout_url;
+      } else {
+        toast.error(response.message || "Failed to initialize payment");
+      }
+    } catch (error) {
+      console.error("Payment initialization error:", error);
+      toast.error("Failed to initialize payment. Please try again.");
+    } finally {
+      setPaymentLoading((prev) => ({ ...prev, [bookingId]: false }));
+    }
   };
 
   return (
@@ -120,8 +147,12 @@ const MyBookings = () => {
                       {totalAmount || 0}
                     </p>
                     {!item.isPaid && (
-                      <button className="bg-primary px-5 py-2 text-sm md:text-base rounded-full font-medium text-white hover:bg-primary/80 transition">
-                        Pay Now
+                      <button 
+                        onClick={() => handlePayNow(item._id)}
+                        disabled={paymentLoading[item._id]}
+                        className="bg-primary px-5 py-2 text-sm md:text-base rounded-full font-medium text-white hover:bg-primary/80 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {paymentLoading[item._id] ? "Processing..." : "Pay Now"}
                       </button>
                     )}
                   </div>

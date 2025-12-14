@@ -552,7 +552,36 @@ const SeatLayout = () => {
 
       if (data.success) {
         toast.success(data.message);
-        navigate("/my-bookings");
+        
+        // Extract booking ID from response
+        const bookingId = data.booking?._id || data.bookingId || data.id;
+        
+        if (!bookingId) {
+          toast.error("Booking created but payment initialization failed");
+          navigate("/my-bookings");
+          return;
+        }
+
+        // Initialize payment
+        try {
+          const paymentResponse = await axios.post(
+            `/api/payment/initialize/${bookingId}`,
+            {},
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+
+          if (paymentResponse.data.success && paymentResponse.data.data?.checkout_url) {
+            // Redirect to Chapa checkout page
+            window.location.href = paymentResponse.data.data.checkout_url;
+          } else {
+            toast.error("Payment initialization failed. Please pay from My Bookings.");
+            navigate("/my-bookings");
+          }
+        } catch (paymentErr) {
+          console.error("Payment initialization error:", paymentErr);
+          toast.error("Payment initialization failed. Please pay from My Bookings.");
+          navigate("/my-bookings");
+        }
       } else {
         toast.error(data.message || "Something went wrong. Please try again.");
         // refresh occupied seats because server might have changed them

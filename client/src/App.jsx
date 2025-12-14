@@ -26,6 +26,8 @@ import ReservationForm from './components/ReservationForm.jsx'
 import AdminReservations from './pages/admin/AdminReservations.jsx'
 import AdminAddManualMovie from './pages/admin/AdminAddManualMovie.jsx'
 import PrivacyPolicy from './components/PrivacyPolicy.jsx'
+import PaymentSuccess from './pages/PaymentSuccess.jsx'
+import PaymentFailed from './pages/PaymentFailed.jsx'
 
 
 
@@ -55,6 +57,8 @@ const App = () => {
         <Route path='/favorite' element={<Favorite/>}/>
         <Route path='/packages' element={<Packages />}/>
        <Route path='/privacy-policy' element={<PrivacyPolicy />}/>
+       <Route path='/payment/success' element={<PaymentSuccess />}/>
+       <Route path='/payment/failed' element={<PaymentFailed />}/>
 
       <Route path='/admin/*' element={ user ? <Layout/> : (
         <div className='min-h-screen flex justify-center items-center'>

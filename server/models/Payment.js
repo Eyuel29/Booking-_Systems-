@@ -24,9 +24,9 @@ const paymentSchema = new mongoose.Schema(
     amount: { type: Number, required: true },
     charge: { type: Number },
 
-    mode: { type: String },    // test | live
-    method: { type: String },  // test | card | wallet | ...
-    type: { type: String },    // API
+    mode: { type: String }, // test | live
+    method: { type: String }, // test | card | wallet | ...
+    type: { type: String }, // API
 
     status: {
       type: String,
@@ -35,12 +35,12 @@ const paymentSchema = new mongoose.Schema(
     },
 
     reference: { type: String }, // ex: "6jnheVKQEmy"
-    tx_ref: { type: String },    // ex: "chewatatest-6669"
+    tx_ref: { type: String }, // ex: "chewatatest-6669"
 
     customization: {
       title: { type: String },
       description: { type: String },
-      logo: { type: String || null },
+      logo: { type: String, default: null },
     },
 
     meta: {
